@@ -1,4 +1,4 @@
-import Atm.CardAcceptor;
+import Atm.*;
 import Card.Card;
 
 import java.io.File;
@@ -6,7 +6,8 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Scanner;
-import com.google.gson.Gson;
+
+
 
 public class index {
     public static void main(String[] args) throws IOException {
@@ -21,7 +22,26 @@ public class index {
         Scanner chooseCard = new Scanner(System.in);
         int cardNumber = chooseCard.nextInt() - 1;
         File cardFile =  Objects.requireNonNull(cardsDirectory.listFiles())[cardNumber];
+        Card newCard = createCardFromFile(cardFile);
 
+        CardAcceptor cardAcceptor = new CardAcceptor(newCard);
+        Scanner pin = new Scanner(System.in);
+        Atm atm = new Atm();
+        System.out.println("Пожалуйста введите pin код");
+        atm.checkPin(pin.nextLine());
+
+
+
+        /**
+         * TODO:
+         * Введите пин код
+         * обработка пин кода принято/не принято
+         * Выберените действие
+         * Оплата счето/внесение на счет/снятие со счета
+         */
+    }
+
+    private static Card createCardFromFile(File cardFile) {
         Scanner cardFileData = null;
         Card newCard = new Card();
         try {
@@ -34,21 +54,15 @@ public class index {
             if (!cardFileData.hasNextLine()) break;
             String line = cardFileData.nextLine();
             if (line.length() == 12 && isNumeric(line)) newCard.setAccountNumber(line);
-            if(line.contains("/")) newCard.setExpirationDate(line);
-            if(line.contains(" ")) {
+            if (line.contains("/")) newCard.setExpirationDate(line);
+            if (line.contains(" ")) {
                 String[] holder = line.split(" ");
                 newCard.setAccountHolderName(holder[0]);
                 newCard.setAccountHolderSoname(holder[1]);
             }
         }
-        CardAcceptor cardAcceptor = new CardAcceptor(newCard);
-
-        GreetClient client = new GreetClient();
-        client.startConnection("127.0.0.1", 6666);
-        String response = client.sendMessage("hello server");
-        System.out.println(response);
+        return  newCard;
     }
-
 
     public static boolean isNumeric(String str) {
         if (str == null) {
@@ -63,5 +77,3 @@ public class index {
         return true;
     }
 }
-
-

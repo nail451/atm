@@ -5,7 +5,14 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-//import org.json.*;
+
+import Interface.Command;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import java.util.HashMap;
+import java.lang.reflect.Type;
+import com.google.gson.reflect.TypeToken;
+
 
 /**
  * Класс описывающий сущность Банк, для работы с atm
@@ -31,13 +38,34 @@ public class Bank {
         clientSocket = serverSocket.accept();
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        String greeting = in.readLine();
-        if ("hello server".equals(greeting)) {
-            out.println("hello client");
+        String request = in.readLine();
+        if(isJsonValid(request)){
+            GsonBuilder builder = new GsonBuilder();
+            Gson gson = builder.create();
+            Commands result = gson.fromJson(request, Commands.class);
+            System.out.println(request);
+            System.out.println(result.toString());
         }
-        else {
-            out.println("unrecognised greeting");
+
+
+        switch (request) {
+            case "hello": {
+                System.out.println("hello");
+                out.println("hello");
+                break;
+            }
+            case "pin": {
+                //pinCheck(pinCode);
+                break;
+            }
+            default: {
+                System.out.println("unrecognised greeting");
+                out.println("unrecognised greeting");
+                break;
+            }
         }
+        serverStop(); //Коннект все равно рушится, так что подчищаем за собой
+        serverStart(listeningPort);  //Запускаем сервер по новой
     }
 
     public void serverStop() throws IOException {
@@ -47,20 +75,13 @@ public class Bank {
         serverSocket.close();
     }
 
-/*    public boolean isJSONValid(String test) {
-        try {
-            new JSONObject(test);
-        } catch (JSONException ex) {
-            // edited, to include @Arthur's comment
-            // e.g. in case JSONArray is valid as well...
-            try {
-                new JSONArray(test);
-            } catch (JSONException ex1) {
-                return false;
-            }
-        }
-        return true;
-    }*/
+    private boolean isJsonValid(String json) {
+        Gson gson = new Gson();
+        String gsonClass = String.valueOf(gson.fromJson(json, Object.class).getClass());
+        String equalsString = "class com.google.gson.internal.LinkedTreeMap";
+        return gsonClass.equals(equalsString);
+    }
+
 
     /**
      * Метод проверки пин кода введенного клиентом
@@ -72,4 +93,31 @@ public class Bank {
         return checkResult;
     }
 
+}
+
+class Commands implements Command {
+    private String key;
+    private String value;
+
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public void setValue(String value) {
+        this.value = value;
+    }
+
+    @Override
+    public String toString() {
+        return key + ": " + value;
+    }
 }
