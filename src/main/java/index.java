@@ -28,7 +28,8 @@ public class index {
         Scanner pin = new Scanner(System.in);
         Atm atm = new Atm();
         System.out.println("Пожалуйста введите pin код");
-        atm.checkPin(pin.nextLine());
+        System.out.println(newCard);
+        atm.checkPin(pin.nextLine(), newCard);
 
 
 
@@ -53,7 +54,7 @@ public class index {
             assert cardFileData != null;
             if (!cardFileData.hasNextLine()) break;
             String line = cardFileData.nextLine();
-            if (line.length() == 12 && isNumeric(line)) newCard.setAccountNumber(line);
+            if (line.length() == 16 && isNumeric(line)) newCard.setAccountNumber(line);
             if (line.contains("/")) newCard.setExpirationDate(line);
             if (line.contains(" ")) {
                 String[] holder = line.split(" ");

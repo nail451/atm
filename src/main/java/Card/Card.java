@@ -34,18 +34,19 @@ public class Card {
     }
 
     public String getAccountHolderName() {
-        return accountHolderName;
+        return accountHolderName + " " + accountHolderSoname;
     }
 
     public void setAccountHolderName(String accountHolderName) {
         this.accountHolderName = accountHolderName;
-    }
-    public String getAccountHolderSoname() {
-        return accountHolderSoname;
     }
 
     public void setAccountHolderSoname(String accountHolderSoname) {
         this.accountHolderSoname = accountHolderSoname;
     }
 
+    @Override
+    public String toString() {
+        return getAccountNumber() + "/" + getAccountHolderName() + " " + getExpirationDate();
+    }
 }

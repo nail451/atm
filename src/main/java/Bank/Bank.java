@@ -5,13 +5,13 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-
-import Interface.Command;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+
+import java.sql.SQLException;
 import java.util.HashMap;
-import java.lang.reflect.Type;
-import com.google.gson.reflect.TypeToken;
+import java.util.Map;
+
 
 
 /**
@@ -22,46 +22,44 @@ public class Bank {
     private Socket clientSocket;
     private PrintWriter out;
     private BufferedReader in;
+    private static BankController bankController;
 
     /**
      * Инициализация сокет сервера
      * @param args стандартное описание метода main
      * @throws IOException
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, SQLException {
         Bank socketServer = new Bank();
+        bankController = new BankController();
         socketServer.serverStart(451);
     }
 
-    public void serverStart(int listeningPort) throws IOException {
+    public void serverStart(int listeningPort) throws IOException, SQLException {
         serverSocket = new ServerSocket(listeningPort);
         clientSocket = serverSocket.accept();
         out = new PrintWriter(clientSocket.getOutputStream(), true);
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
         String request = in.readLine();
-        if(isJsonValid(request)){
+        if(isJsonValid(request)) {
             GsonBuilder builder = new GsonBuilder();
             Gson gson = builder.create();
-            Commands result = gson.fromJson(request, Commands.class);
-            System.out.println(request);
-            System.out.println(result.toString());
-        }
-
-
-        switch (request) {
-            case "hello": {
-                System.out.println("hello");
-                out.println("hello");
-                break;
-            }
-            case "pin": {
-                //pinCheck(pinCode);
-                break;
-            }
-            default: {
-                System.out.println("unrecognised greeting");
-                out.println("unrecognised greeting");
-                break;
+            Map<String, String> result = gson.fromJson(request, HashMap.class);
+            switch (result.get("0")) {
+                case "check_connection": {
+                    System.out.println("hello");
+                    out.println("hello");
+                    break;
+                }
+                case "check_pin": {
+                    out.println(pinCheck(result.get("pin"), result.get("card_number"), result.get("expiration_date"), result.get("name")));
+                    break;
+                }
+                default: {
+                    System.out.println("unrecognised greeting");
+                    out.println("unrecognised greeting");
+                    break;
+                }
             }
         }
         serverStop(); //Коннект все равно рушится, так что подчищаем за собой
@@ -88,36 +86,8 @@ public class Bank {
      * @param pinCode
      * @return
      */
-    public boolean pinCheck(int pinCode) {
-        boolean checkResult = false;
-        return checkResult;
+    public boolean pinCheck(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+        return bankController.getUserByCardData(pinCode, accountNumber, expirationDate, holderName);
     }
 
-}
-
-class Commands implements Command {
-    private String key;
-    private String value;
-
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    public void setValue(String value) {
-        this.value = value;
-    }
-
-    @Override
-    public String toString() {
-        return key + ": " + value;
-    }
 }

@@ -6,7 +6,10 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
+import Card.Card;
 import Interface.Command;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
@@ -35,12 +38,24 @@ public class Atm {
         }
     }
 
-    public void checkPin(String enteredPinCode) throws IOException {
+    public void checkPin(String enteredPinCode, Card cardForCheck) {
         if(isPinValid(enteredPinCode)) {
             String hashedPinCode = Hashing.sha256()
                     .hashString(enteredPinCode, StandardCharsets.UTF_8)
                     .toString();
-            String json = makeJson("pin",hashedPinCode);
+            String[] keys = new String[5];
+            keys[0] = "0";
+            keys[1] = "pin";
+            keys[2] = "card_number";
+            keys[3] = "expiration_date";
+            keys[4] = "name";
+            String[] values = new String[5];
+            values[0] = "check_pin";
+            values[1] = hashedPinCode + "";
+            values[2] = cardForCheck.getAccountNumber() + "";
+            values[3] = cardForCheck.getExpirationDate() + "";
+            values[4] = cardForCheck.getAccountHolderName() + "";
+            String json = makeJson(keys,values);
             sendMsgToTheBank(json);
         }
     }
@@ -57,10 +72,17 @@ public class Atm {
         return true;
     }
 
-    private String makeJson(String key, String value) {
+    private String makeJson(String[] key, String[] value) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
-        return gson.toJson(new Commands(key, value));
+        Map<String, String> toJson = new HashMap<String, String>();
+        if(key.length == value.length) {
+            for(int i=0; i< key.length; i++) {
+                toJson.put(key[i], value[i]);
+            }
+        }
+
+        return gson.toJson(toJson);
     }
 
     public void getDataFromBankAccount() {
@@ -106,36 +128,5 @@ class SocketClient {
         in.close();
         out.close();
         clientSocket.close();
-    }
-}
-
-class Commands implements Command {
-    private String key;
-    private String value;
-
-    public Commands(String key, String value) {
-        setKey(key);
-        setValue(value);
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    public void setValue(String value) {
-        this.value = value;
-    }
-
-    @Override
-    public String toString() {
-        return key + ": " + value;
     }
 }
