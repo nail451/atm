@@ -27,7 +27,7 @@ public class Bank {
     /**
      * Инициализация сокет сервера
      * @param args стандартное описание метода main
-     * @throws IOException
+     * @throws IOException, SQLException
      */
     public static void main(String[] args) throws IOException, SQLException {
         Bank socketServer = new Bank();
@@ -45,7 +45,7 @@ public class Bank {
             GsonBuilder builder = new GsonBuilder();
             Gson gson = builder.create();
             Map<String, String> result = gson.fromJson(request, HashMap.class);
-            switch (result.get("0")) {
+            switch (result.get("command")) {
                 case "check_connection": {
                     System.out.println("hello");
                     out.println("hello");
@@ -82,12 +82,15 @@ public class Bank {
 
 
     /**
-     * Метод проверки пин кода введенного клиентом
-     * @param pinCode
-     * @return
+     * @param pinCode пин код
+     * @param accountNumber номер карты
+     * @param expirationDate дата валидности в unixtime
+     * @param holderName Имя и Фамилия владельца
+     * @return boolean
+     * @throws SQLException
      */
     public boolean pinCheck(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
-        return bankController.getUserByCardData(pinCode, accountNumber, expirationDate, holderName);
+        return bankController.checkCardData(pinCode, accountNumber, expirationDate, holderName);
     }
 
 }

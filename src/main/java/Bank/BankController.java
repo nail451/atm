@@ -3,10 +3,9 @@ package Bank;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -37,6 +36,28 @@ public class BankController{
         }
     }
 
+    public boolean checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+        String query =
+                "SELECT " +
+                    "count(*) " +
+                "FROM " +
+                    "clients cl, plastic_cards crd, accounts acs " +
+                "WHERE " +
+                    "crd.account_id = acs.id AND crd.client_id = cl.id AND acs.client_id = cl.id AND " +
+                    "crd.pin = ? AND crd.account_number = ? AND crd.name = ? AND crd.expiration_date = ?";
+        PreparedStatement statement = dbConnection.prepareStatement(query);
+        statement.setString(1, pinCode);
+        statement.setString(2, accountNumber);
+        statement.setString(3, holderName);
+        statement.setString(4, expirationDate);
+        ResultSet resultSet = statement.executeQuery();
+        boolean response = false;
+        while (resultSet.next()){
+            if(resultSet.getInt(1) == 1) response = true;
+        }
+        return response;
+    }
+
     /**
      * Метод проверки пин кода введенного клиентом.
      * Метод принимает пин код в формате sha256 дергает из базы соль текущего клиента
@@ -48,27 +69,39 @@ public class BankController{
      * @param holderName String имя владельца
      * @return boolean
      */
-    public boolean getUserByCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+    public Map<String, String> getUserByCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
         String query =
                 "SELECT " +
-                        "cl.name, cl.soname, acs.balance, crd.card_status, acs.account_status, crd.expiration_date " +
+                    "cl.name, cl.soname, acs.balance, crd.card_status, acs.account_status, crd.expiration_date " +
                 "FROM " +
-                        "clients cl, plastic_cards crd, accounts acs " +
+                    "clients cl, plastic_cards crd, accounts acs " +
                 "WHERE " +
-                    "crd.account_id = acs.id AND " +
-                    "crd.client_id = cl.id AND " +
-                    "acs.client_id = cl.id AND " +
-                    "crd.pin = ? AND " +
-                    "crd.account_number = ? AND " +
-                    "crd.name = ? AND " +
-                    "crd.expiration_date = ?";
+                    "crd.account_id = acs.id AND crd.client_id = cl.id AND acs.client_id = cl.id AND " +
+                    "crd.pin = ? AND crd.account_number = ? AND crd.name = ? AND crd.expiration_date = ?";
         PreparedStatement statement = dbConnection.prepareStatement(query);
         statement.setString(1, pinCode);
         statement.setString(2, accountNumber);
-        statement.setString(3, expirationDate);
-        statement.setString(4, holderName);
-        return statement.execute();
-         /*ResultSet resultSet = statement.getResultSet();
-        resultSet.next();*/
+        statement.setString(3, holderName);
+        statement.setString(4, expirationDate);
+        System.out.println(pinCode + "|" + accountNumber + "|" + expirationDate + "|" + holderName);
+        ResultSet resultSet = statement.executeQuery();
+        Map<String, String> response = new HashMap<>();
+        java.util.Date today = new java.util.Date();
+        java.sql.Timestamp nowTimeStamp = new java.sql.Timestamp(today.getTime());
+        while (resultSet.next()){
+            if(!resultSet.getString(4).equals("open")) {
+                response.put("status", "card on_hold");
+            } else if(!resultSet.getString(5).equals("open")) {
+                response.put("status", "account on_hold");
+            } else if(resultSet.getLong(6) > nowTimeStamp.getTime()){
+                response.put("status", "expired");
+            } else {
+                response.put("status", "ok");
+            }
+            response.put("name", resultSet.getString(1) + " " + resultSet.getString(2));
+            response.put("balance", resultSet.getString(3));
+        }
+        System.out.println(response);
+        return response;
     }
 }
