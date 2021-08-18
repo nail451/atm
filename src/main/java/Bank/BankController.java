@@ -36,7 +36,16 @@ public class BankController{
         }
     }
 
-    public boolean checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+    /**
+     * Метод проверки pin кода и данных полученных с карты клиента
+     * @param pinCode пин код в формате sha256
+     * @param accountNumber номер карты
+     * @param expirationDate дота истечения срока действия
+     * @param holderName имя и фамилия держателя карты в транскрипции
+     * @return boolean
+     * @throws SQLException ошибка sql
+     */
+    public Map<String, String> checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
         String query =
                 "SELECT " +
                     "count(*) " +
@@ -51,25 +60,24 @@ public class BankController{
         statement.setString(3, holderName);
         statement.setString(4, expirationDate);
         ResultSet resultSet = statement.executeQuery();
-        boolean response = false;
+        Map<String, String> response = new HashMap<>();
         while (resultSet.next()){
-            if(resultSet.getInt(1) == 1) response = true;
+            if(resultSet.getInt(1) == 1) {
+                response.put("status","true");
+            }
+            else {
+                response.put("status","false");
+            }
         }
         return response;
     }
 
     /**
-     * Метод проверки пин кода введенного клиентом.
-     * Метод принимает пин код в формате sha256 дергает из базы соль текущего клиента
-     * и используя соль генерирует новых хэш и если этот хэш соотвествует указанному в базе
-     * возвращает true
-     * @param pinCode String строка в формате sha256
+     * Метод общей проверки данных о клиенте, карте и счете.
      * @param accountNumber String номер карты
-     * @param expirationDate String дата окончания поддержки карты
-     * @param holderName String имя владельца
-     * @return boolean
+     * @return коллекция hashmap с ключами status, name, balance
      */
-    public Map<String, String> getUserByCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+    public Map<String, String> getUserByCardData(String accountNumber) throws SQLException {
         String query =
                 "SELECT " +
                     "cl.name, cl.soname, acs.balance, crd.card_status, acs.account_status, crd.expiration_date " +
@@ -77,22 +85,18 @@ public class BankController{
                     "clients cl, plastic_cards crd, accounts acs " +
                 "WHERE " +
                     "crd.account_id = acs.id AND crd.client_id = cl.id AND acs.client_id = cl.id AND " +
-                    "crd.pin = ? AND crd.account_number = ? AND crd.name = ? AND crd.expiration_date = ?";
+                    "crd.account_number = ?";
         PreparedStatement statement = dbConnection.prepareStatement(query);
-        statement.setString(1, pinCode);
-        statement.setString(2, accountNumber);
-        statement.setString(3, holderName);
-        statement.setString(4, expirationDate);
-        System.out.println(pinCode + "|" + accountNumber + "|" + expirationDate + "|" + holderName);
+        statement.setString(1, accountNumber);
         ResultSet resultSet = statement.executeQuery();
         Map<String, String> response = new HashMap<>();
         java.util.Date today = new java.util.Date();
         java.sql.Timestamp nowTimeStamp = new java.sql.Timestamp(today.getTime());
         while (resultSet.next()){
             if(!resultSet.getString(4).equals("open")) {
-                response.put("status", "card on_hold");
+                response.put("status", "card_on_hold");
             } else if(!resultSet.getString(5).equals("open")) {
-                response.put("status", "account on_hold");
+                response.put("status", "account_on_hold");
             } else if(resultSet.getLong(6) > nowTimeStamp.getTime()){
                 response.put("status", "expired");
             } else {
@@ -101,7 +105,6 @@ public class BankController{
             response.put("name", resultSet.getString(1) + " " + resultSet.getString(2));
             response.put("balance", resultSet.getString(3));
         }
-        System.out.println(response);
         return response;
     }
 }

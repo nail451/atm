@@ -16,17 +16,23 @@ import java.util.Scanner;
 public class Client {
 
     public Card selectCard() {
-        System.out.println("//Введите номер карты из предложенного списка//");
-        File cardsDirectory = new File("./cards/");
-        short cardsCounter = 0;
-        for( File cardsFiles : Objects.requireNonNull(cardsDirectory.listFiles())){
-            cardsCounter++;
-            System.out.println( cardsCounter + ". " + cardsFiles.getName() );
+        while (true) {
+            System.out.println("//Введите номер карты из предложенного списка//");
+            File cardsDirectory = new File("./cards/");
+            short cardsCounter = 0;
+            for (File cardsFiles : Objects.requireNonNull(cardsDirectory.listFiles())) {
+                cardsCounter++;
+                System.out.println(cardsCounter + ". " + cardsFiles.getName());
+            }
+            Scanner chooseCard = new Scanner(System.in);
+            int cardNumber = chooseCard.nextInt() - 1;
+            try {
+                File cardFile = Objects.requireNonNull(cardsDirectory.listFiles())[cardNumber];
+                return createCardFromFile(cardFile);
+            } catch (ArrayIndexOutOfBoundsException e) {
+                System.out.println("//Ошибка ввода//");
+            }
         }
-        Scanner chooseCard = new Scanner(System.in);
-        int cardNumber = chooseCard.nextInt() - 1;
-        File cardFile =  Objects.requireNonNull(cardsDirectory.listFiles())[cardNumber];
-        return createCardFromFile(cardFile);
     }
 
     private Card createCardFromFile(File cardFile) {

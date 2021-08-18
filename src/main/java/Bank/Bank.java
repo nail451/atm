@@ -35,6 +35,12 @@ public class Bank {
         socketServer.serverStart(451);
     }
 
+    /**
+     * Метод запуска сервера и обработки приходящей информации
+     * @param listeningPort int порт который будет слушать сервер
+     * @throws IOException ошибка ввода вывода
+     * @throws SQLException ошибка sql
+     */
     public void serverStart(int listeningPort) throws IOException, SQLException {
         serverSocket = new ServerSocket(listeningPort);
         clientSocket = serverSocket.accept();
@@ -44,21 +50,26 @@ public class Bank {
         if(isJsonValid(request)) {
             GsonBuilder builder = new GsonBuilder();
             Gson gson = builder.create();
-            Map<String, String> result = gson.fromJson(request, HashMap.class);
+            HashMap<String, String> result = gson.fromJson(request, HashMap.class);
             switch (result.get("command")) {
-                case "check_connection": {
+                case "check_connection" -> {
                     System.out.println("hello");
                     out.println("hello");
-                    break;
                 }
-                case "check_pin": {
-                    out.println(pinCheck(result.get("pin"), result.get("card_number"), result.get("expiration_date"), result.get("name")));
-                    break;
-                }
-                default: {
+                case "check_pin" -> out.println(
+                        makeJson(
+                                pinCheck(
+                                        result.get("pin"),
+                                        result.get("card_number"),
+                                        result.get("expiration_date"),
+                                        result.get("name"))));
+                case "get_data" -> out.println(
+                        makeJson(
+                                getUserData(
+                                        result.get("card_number"))));
+                default -> {
                     System.out.println("unrecognised greeting");
                     out.println("unrecognised greeting");
-                    break;
                 }
             }
         }
@@ -66,6 +77,10 @@ public class Bank {
         serverStart(listeningPort);  //Запускаем сервер по новой
     }
 
+    /**
+     * Метод остановки сервера
+     * @throws IOException ошибка ввода вывода
+     */
     public void serverStop() throws IOException {
         in.close();
         out.close();
@@ -73,6 +88,17 @@ public class Bank {
         serverSocket.close();
     }
 
+    private String makeJson(Map<String, String> map) {
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        Gson gson = gsonBuilder.create();
+        return gson.toJson(map);
+    }
+
+    /**
+     * Проверка пришедшей на сервер строки на json
+     * @param json строка в вформате json
+     * @return boolean
+     */
     private boolean isJsonValid(String json) {
         Gson gson = new Gson();
         String gsonClass = String.valueOf(gson.fromJson(json, Object.class).getClass());
@@ -86,11 +112,20 @@ public class Bank {
      * @param accountNumber номер карты
      * @param expirationDate дата валидности в unixtime
      * @param holderName Имя и Фамилия владельца
-     * @return boolean
-     * @throws SQLException
+     * @return HashMap
+     * @throws SQLException ошибка sql
      */
-    public boolean pinCheck(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+    public Map<String, String> pinCheck(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
         return bankController.checkCardData(pinCode, accountNumber, expirationDate, holderName);
+    }
+
+    /**
+     * @param accountNumber номер карты
+     * @return HashMap
+     * @throws SQLException ошибка sql
+     */
+    public Map<String, String> getUserData(String accountNumber) throws SQLException {
+        return bankController.getUserByCardData(accountNumber);
     }
 
 }
