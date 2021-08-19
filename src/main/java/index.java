@@ -15,12 +15,13 @@ public class index {
         Atm atm = new Atm();
         while (true) {
             try {
-                System.out.println(1);
+                //Выбор карты и ввод карты в банкомат
                 Card card = client.selectCard();
                 client.putCardInCardAcceptor(atm, card);
                 atm.checkPinAskPin();
                 Scanner pin = client.fillPinField();
                 while (true) {
+                    //Проверка пин кода
                     try {
                         atm.checkPinStart(pin);
                         if (atm.getOperationStatus()) {
@@ -34,27 +35,44 @@ public class index {
                         }
                     }
                 }
+                //Получение клиентских данных
                 atm.getDataFromBankAccount();
                 System.out.println("\n" + atm.getOperationResult() + "\n\n");
 
-
-                System.out.println("Выберите действие:");
-                System.out.println("1.Оплата счета\n2.Внесение наличных на счет\n3.Снятие со счета\n0.Возврат карты");
-                Scanner nextMove = new Scanner(System.in);
-                switch (nextMove.nextInt()) {
-                    case 1 -> {
-                        client.fillChecks();
-                    }
-                    case 2 -> {
-                        client.getMoneyFromBankAccount();
-                    }
-                    case 3 -> {
-                        client.putMoneyToBankAccount();
-                    }
-                    case 0 -> {
-                        atm.eject();
+                //Главное меню банкомата
+                while (true) {
+                    atm.giveAnOptions();
+                    Scanner optionId = client.chooseOption();
+                    switch (optionId.nextInt()) {
+                        case 1 -> {
+                            atm.payChecks();
+                        }
+                        case 2 -> {
+                            while (true) {
+                                atm.putBillsOnBankAccount();
+                                int option = client.chooseOption().nextInt();
+                                if (option == 1) {
+                                    atm.endTransaction();
+                                    break;
+                                } else if (option == 3) {
+                                    atm.getMoneyBack();
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                        }
+                        case 3 -> {
+                            atm.getMoneyFromBankAccount();
+                        }
+                        case 0 -> {
+                            atm.eject();
+                        }
                     }
                 }
+
+
+
 
                 /**
                  * TODO:

@@ -6,6 +6,9 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import Card.Card;
 import com.google.common.hash.Hashing;
@@ -17,6 +20,9 @@ public class Atm {
     private boolean operationStatus;
     private String operationResult;
     private CardAcceptor cardAcceptor;
+    private BillAcceptor billAcceptor = new BillAcceptor();
+    private Map<Integer, Integer> outputCassette;
+    final int DELAYTIME = 30;
 
     /// get+set ///
     public boolean getOperationStatus() {
@@ -224,6 +230,11 @@ public class Atm {
         }
     }
 
+    public void giveAnOptions() {
+        System.out.println("Выберите действие:");
+        System.out.println("1.Оплата счета\n2.Внесение наличных на счет\n3.Снятие со счета\n0.Возврат карты");
+    }
+
     /**
      * Метод отправки команды на диспенсер с выдачей суммы со счет клиента
      */
@@ -249,6 +260,19 @@ public class Atm {
      * на внесение суммы на счет клиента
      */
     public void putBillsOnBankAccount() {
+        int summ = billAcceptor.openBillAcceptor();
+        System.out.println("Вы добавили денег на сумму " + summ);
+        System.out.println("1.Внести на счет 2.Добавить сумму 3.Вернуть деньги");
+        System.out.println("Типа саздаю транзакцию");
+        //TODO: createBankTransaction();
+    }
+
+    public void endTransaction() {
+        System.out.println("Типа финалю транзакцию");
+    }
+
+    public void getMoneyBack() {
+        System.out.println("Типа отдал бабосик");
     }
 
     /**
@@ -269,14 +293,130 @@ public class Atm {
  * Класс описывающий приемник купюр
  */
 class BillAcceptor implements Receiving {
-    private String statusOfBillAcceptor;
-    private boolean isBillAcceptorOpen;
-    private int[][] BillAcceptorContains;
+
+    private Map<Integer, Integer> billAcceptorContains = new HashMap<>();
+    private Map<Integer, Integer> inputCassette;
+    private TimerTask task;
+
+    public BillAcceptor(){
+        inputCassette = checkInputCassette();
+    }
+
+    public Map<Integer, Integer> getBillAcceptorContains() {
+        return billAcceptorContains;
+    }
+
+    /**
+     * Геттер суммы по контейнеру валюты
+     * @return сумма купюр
+     */
+    public int getBillAcceptorSum() {
+        Map<Integer, Integer> container = getBillAcceptorContains();
+        Object[] bills = container.keySet().toArray();
+        int sum = 0;
+        for (Object i : bills) {
+            sum += Integer.valueOf((Integer) i) * container.get(Integer.valueOf((Integer) i));
+        }
+        return sum;
+    }
+
+    /**
+     * Сеттер временного хранилица валюты
+     * Суммирует кол-во купюр из текущего и нового
+     * Если пришел пустой контейнер обнуляет текущий
+     * @param billAcceptorContains колекция в формате <Номинал = Кол-во>
+     */
+    public void setBillAcceptorContains(Map<Integer, Integer> billAcceptorContains) {
+        Map<Integer, Integer> newContains = new HashMap<>();
+        Map<Integer, Integer> billsInAcceptor = getBillAcceptorContains();
+        if(billsInAcceptor.isEmpty()) {
+            this.billAcceptorContains = billAcceptorContains;
+        } else {
+            Object[] bills = billsInAcceptor.keySet().toArray();
+            if (!billAcceptorContains.isEmpty()) {
+                for (Object i : bills) {
+                    int nowIn = billsInAcceptor.get(Integer.valueOf((Integer) i));
+                    int nowAdd = billAcceptorContains.get(Integer.valueOf((Integer) i));
+                    newContains.put(Integer.valueOf((Integer) i), nowIn + nowAdd);
+                }
+                this.billAcceptorContains = newContains;
+            } else {
+                this.billAcceptorContains = billAcceptorContains;
+            }
+        }
+    }
+
+    public Map<Integer, Integer> getInputCassette() {
+        return inputCassette;
+    }
+
+    public void setInputCassette(Map<Integer, Integer> inputCassette) {
+        this.inputCassette = inputCassette;
+    }
+
+    private Map<Integer, Integer> checkInputCassette() {
+        File atmSafe = new File("src/main/java/Atm/atm_safe");
+        Scanner atmSafeData = null;
+        try {
+            atmSafeData = new Scanner(atmSafe);
+        } catch (FileNotFoundException e) {
+            System.out.println("Сейф вскрыт, кассеты отсутвуют");
+        }
+        String data = "";
+        assert atmSafeData != null;
+        if (atmSafeData.hasNextLine()) {
+            data = atmSafeData.nextLine();
+        }
+        GsonBuilder builder = new GsonBuilder();
+        Gson gson = builder.create();
+        Map<String, Map<Integer, Integer>> result = gson.fromJson(data, HashMap.class);
+        return result.get("input_cassette");
+
+    }
+
+    private String str = "";
+
+    private void startTimer() {
+        task = new TimerTask() {
+            public void run() {
+                if (str.equals("")) {
+                    System.out.println("you input nothing. exit...");
+                    System.exit(0);
+                }
+            }
+        };
+    }
 
     /**
      * Метод открытия агрегата
+     * @return
      */
-    public void openBillAcceptor(){
+    public int openBillAcceptor() {
+        startTimer();
+        Timer timer = new Timer();
+        timer.schedule( task, 10*1000 );
+        System.out.println( "Пожалуйста положите купюру или пачку в купюроприемник" );
+        int str = new Scanner(System.in).nextInt();
+        timer.cancel();
+        parseBillAcceptorContains(str);
+        return getBillAcceptorSum();
+    }
+
+    /**
+     * Метод распредения суммы по купюрам
+     * За основу берет кассету с деньгами, как шаблон достпуных принимаемых купюр
+     * @param summ сумма денег в пачке внесенная клиентом
+     * @return Hashmap коллекция в формате <Номинал, Количество>
+     */
+    public void parseBillAcceptorContains(int summ) {
+        Object[] availableBIlls = getInputCassette().keySet().toArray();
+        Map<Integer,Integer>money = new HashMap<>();
+        for(Object bill : availableBIlls) {
+            int newBill = Integer.parseInt((String) bill);
+            money.put(newBill, summ/newBill);//Закидываем в коллекцию номинал и кол-во
+            if(summ/newBill > 0) summ = summ-(newBill*(summ/newBill));//Если кол-во больше 0 то вычитам номинал*кол-во из суммы
+        }
+        setBillAcceptorContains(money);
     }
 
     /**

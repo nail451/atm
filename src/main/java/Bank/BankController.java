@@ -16,9 +16,13 @@ public class BankController{
     private Connection dbConnection;
 
     /**
-     * Конструктор класса банк, при инициализации создает подключениен к базе данных.
+     * Метод создания подключения к базе
+     * Подключение без авто комита, так что
+     * для завершения транзации используем commit
+     * Реквизиты к базе данных указываются в файле
+     * resources/config.properties
      */
-    public BankController() {
+    private void createNewConnection() {
         FileInputStream fis;
         Properties property = new Properties();
 
@@ -29,11 +33,26 @@ public class BankController{
             String login = property.getProperty("db.login");
             String password = property.getProperty("db.password");
             dbConnection = DriverManager.getConnection(host, login, password);
+            dbConnection.setAutoCommit(false);
         } catch (IOException e) {
             System.err.println("ОШИБКА: Конфигурационный файл отсуствует.");
-        } catch (SQLException throwables) {
+        } catch (SQLException q) {
             System.err.println("ОШИБКА: Не удалось подключится к базе данных.");
         }
+    }
+
+    /**
+     * Метод закрывающий подключение к базе
+     */
+    private void closeConnection(Statement statement, ResultSet resultSet) {
+        try {
+            this.dbConnection.close();
+            statement.close();
+            resultSet.close();
+        } catch (SQLException q) {
+            System.err.println("ОШИБКА: Не удалось закрыть подключение к базе.");
+        }
+
     }
 
     /**
@@ -46,6 +65,7 @@ public class BankController{
      * @throws SQLException ошибка sql
      */
     public Map<String, String> checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
+        createNewConnection();
         String query =
                 "SELECT " +
                     "count(*) " +
@@ -60,6 +80,7 @@ public class BankController{
         statement.setString(3, holderName);
         statement.setString(4, expirationDate);
         ResultSet resultSet = statement.executeQuery();
+
         Map<String, String> response = new HashMap<>();
         while (resultSet.next()){
             if(resultSet.getInt(1) == 1) {
@@ -69,6 +90,7 @@ public class BankController{
                 response.put("status","false");
             }
         }
+        closeConnection(statement, resultSet);
         return response;
     }
 
@@ -78,6 +100,7 @@ public class BankController{
      * @return коллекция hashmap с ключами status, name, balance
      */
     public Map<String, String> getUserByCardData(String accountNumber) throws SQLException {
+        createNewConnection();
         String query =
                 "SELECT " +
                     "cl.name, cl.soname, acs.balance, crd.card_status, acs.account_status, crd.expiration_date " +
@@ -105,6 +128,7 @@ public class BankController{
             response.put("name", resultSet.getString(1) + " " + resultSet.getString(2));
             response.put("balance", resultSet.getString(3));
         }
+        closeConnection(statement, resultSet);
         return response;
     }
 }

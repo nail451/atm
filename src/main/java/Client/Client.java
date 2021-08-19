@@ -2,18 +2,19 @@ package Client;
 
 import Atm.Atm;
 import Card.Card;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.Scanner;
+import java.util.*;
 
 /**
  * Класс клиент
  */
 public class Client {
+
+    String wallet;
 
     public Card selectCard() {
         while (true) {
@@ -61,26 +62,34 @@ public class Client {
         return new Scanner(System.in);
     }
 
-    /**
-     * Метод для снятия денег со счета в банке
-     * клиент может снять часть или все деньги со счета
-     */
-    public void getMoneyFromBankAccount() {
+    public Scanner chooseOption() {
+        return new Scanner(System.in);
+    }
+
+    public void checkWallet() {
+        File wallet = new File("wallet");
+        Scanner walletData = null;
+        try {
+            walletData = new Scanner(wallet);
+        } catch (FileNotFoundException e) {
+            System.out.println("Кошелька нет, украли чтоли?");
+        }
+        String data = "";
+        assert walletData != null;
+        if (walletData.hasNextLine()) {
+            data = walletData.nextLine();
+        }
+        GsonBuilder builder = new GsonBuilder();
+        Gson gson = builder.create();
+        HashMap<String, Integer> result = gson.fromJson(data, HashMap.class);
+        System.out.println(result);
+    }
+
+    public void putMoney() {
 
     }
 
-    /**
-     * Метод для добавления денег на счет в банке
-     * клиент может внести деньги на свой счет в банке
-     */
-    public void putMoneyToBankAccount() {
-
-    }
-
-    /**
-     * Метод для оплаты счетов выставленных по клиентскому счету
-     */
-    public void fillChecks() {
+    public void getMoney() {
 
     }
 }
