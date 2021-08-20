@@ -19,7 +19,7 @@ public class index {
                 Card card = client.selectCard();
                 client.putCardInCardAcceptor(atm, card);
                 atm.checkPinAskPin();
-                Scanner pin = client.fillPinField();
+                Scanner pin = client.enterAnswer();
                 while (true) {
                     //Проверка пин кода
                     try {
@@ -31,55 +31,46 @@ public class index {
                         else throw new Exception();
                     } catch (Exception e) {
                         if(!atm.getOperationStatus()) {
+                            if (atm.isOperationCritical()) {
+                                atm.eject();
+                            }
                             System.out.println(atm.getOperationResult());
                         }
                     }
                 }
-                //Получение клиентских данных
+                //Получение и вывод клиентских данных
                 atm.getDataFromBankAccount();
                 System.out.println("\n" + atm.getOperationResult() + "\n\n");
 
                 //Главное меню банкомата
                 while (true) {
-                    atm.giveAnOptions();
-                    Scanner optionId = client.chooseOption();
+                    atm.giveOptions();
+                    Scanner optionId = client.enterAnswer();
                     switch (optionId.nextInt()) {
                         case 1 -> {
                             atm.payChecks();
                         }
                         case 2 -> {
                             while (true) {
-                                atm.putBillsOnBankAccount();
-                                int option = client.chooseOption().nextInt();
+                                client.checkWallet();
+                                int added = atm.putBillsOnBankAccount(client.getSum(), client.getAvailableBills());
+                                client.calculateFromWallet(added);
+                                int option = client.enterAnswer().nextInt();
                                 if (option == 1) {
                                     atm.endTransaction();
                                     break;
                                 } else if (option == 3) {
                                     atm.getMoneyBack();
                                     break;
-                                } else {
-                                    continue;
                                 }
                             }
                         }
                         case 3 -> {
                             atm.getMoneyFromBankAccount();
                         }
-                        case 0 -> {
-                            atm.eject();
-                        }
+                        case 0 -> atm.eject();
                     }
                 }
-
-
-
-
-                /**
-                 * TODO:
-                 * обработка пин кода принято/не принято
-                 * Выберените действие
-                 * Оплата счето/внесение на счет/снятие со счета
-                 */
             } catch (AtmException e) {
                 System.out.println(e.exceptionDescription);
                 if(!e.end) break;
