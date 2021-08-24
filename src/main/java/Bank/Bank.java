@@ -8,6 +8,7 @@ import java.net.Socket;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -67,6 +68,29 @@ public class Bank {
                         makeJson(
                                 getUserData(
                                         result.get("card_number"))));
+                case "new_transaction_add_money" -> out.println(
+                        makeJson(
+                                transactionForAddMoney(
+                                        result.get("atm_hash"),
+                                        result.get("card_number"),
+                                        result.get("sum"),
+                                        1)));
+                case "rollback_add_money_transaction" ->
+                        out.println(
+                                makeJson(
+                                        transactionForAddMoney(
+                                                result.get("atm_hash"),
+                                                result.get("card_number"),
+                                                "",
+                                                2)));
+                case "commit_add_money_transaction" ->
+                        out.println(
+                                makeJson(
+                                        transactionForAddMoney(
+                                                result.get("atm_hash"),
+                                                result.get("card_number"),
+                                                "",
+                                                3)));
                 default -> {
                     System.out.println("unrecognised greeting");
                     out.println("unrecognised greeting");
@@ -128,4 +152,7 @@ public class Bank {
         return bankController.getUserByCardData(accountNumber);
     }
 
+    public Map<String, String> transactionForAddMoney(String atmHash, String cardNumber, String sum, int action) {
+        return bankController.addSomeMoneyToTheBankAccount(atmHash, cardNumber, sum, action);
+    }
 }

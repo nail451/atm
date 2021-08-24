@@ -45,6 +45,11 @@ public class Client {
         }
     }
 
+    /**
+     * Метод создает экземпляр класса и заполняет его поля
+     * @param cardFile файл карты
+     * @return экземпляр класса Card
+     */
     private Card createCardFromFile(File cardFile) {
         Scanner cardFileData = null;
         Card newCard = new Card();
@@ -63,11 +68,6 @@ public class Client {
         return  newCard;
     }
 
-
-    public void putCardInCardAcceptor(Atm atm,Card card) { atm.newCard(card); }
-
-    public Scanner enterAnswer() { return new Scanner(System.in); }
-
     /**
      * Метод возвращает максимальную сумму которую сможет положить клиент на счет
      * @return int сумма
@@ -75,7 +75,7 @@ public class Client {
     public void checkWallet() {
         Map<String,String> result = getBillFromWallet();
         setSumWallet(result);
-        setAvailableBills();
+        setAvailableBills(result);
         System.out.println("Максимальная сумма которую можно положить " + getSum() + "(" + getAvailableBills() + ")");
     }
 
@@ -106,7 +106,7 @@ public class Client {
      * Метод изменяет кол-во купюр по всем наминалам исходя из суммы которая пришла
      * @param money int сумма которую нужно изъять из кошелька
      */
-    private void changeWalletContains(Map<String, String> money) {
+    public void changeWalletContains(Map<String, String> money) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
         String moneyJson = gson.toJson(money);
@@ -137,8 +137,8 @@ public class Client {
     /**
      * Метод устанавливает поле картой с доступными купюрами
      */
-    private void setAvailableBills() {
-        this.availableBills = getBillFromWallet();
+    private void setAvailableBills(Map<String, String> availableBills ) {
+        this.availableBills = availableBills;
     }
 
     /**
@@ -146,9 +146,9 @@ public class Client {
      * @param sum int сумма которую нужно изъять из кошеля
      */
     public void calculateFromWallet(int sum) {
-        List<String> availableBIlls = new LinkedList<>( getBillFromWallet().keySet());
+        List<String> availableBIlls = new LinkedList<>( getAvailableBills().keySet());
         availableBIlls.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
-        Map<String,String>money = getBillFromWallet();
+        Map<String,String>money = getAvailableBills();
         for(String bill : availableBIlls) {
             int newBill = Integer.parseInt(bill);
             int amount = Integer.parseInt(money.get(bill)) - sum/newBill;
@@ -157,7 +157,8 @@ public class Client {
                 sum = sum-(newBill*(sum/newBill));
             }
         }
-        changeWalletContains(money);
+        setAvailableBills(money);
+        setSumWallet(money);
     }
 
     public void putMoney() {

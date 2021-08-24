@@ -6,26 +6,32 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.concurrent.CompletionException;
 
 import Card.Card;
 import com.google.common.hash.Hashing;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+/**
+ * Основной класс описывающий работу банкомата
+ */
 public class Atm {
 
+    private String uniqHash;
     private boolean operationCritical = false;
     private boolean operationStatus;
     private String operationResult;
     private int falseCounter = 0;
     private CardAcceptor cardAcceptor;
     private final BillAcceptor billAcceptor = new BillAcceptor();
-    private Map<Integer, Integer> outputCassette;
-    public final static int DELAYTIME = 10;
+    private final Dispenser dispenser = new Dispenser();
+    private final Printer printer = new Printer();
 
     /// get+set ///
 
+    public String getUniqHash() { return uniqHash; }
+
+    public void setUniqHash(String uniqHash) { this.uniqHash = uniqHash; }
 
     public boolean isOperationCritical() { return operationCritical; }
 
@@ -62,16 +68,21 @@ public class Atm {
      */
     public Atm(){
         System.out.println("Пожалуйста вставьте карту в картоприемник");
+        setUniqHash(generateRandomHash());
     }
 
+    /**
+     * Метод объявляет новый экземпляр класса CardAcceptor и передает в него объект класса Card
+     * @param newCard объект класса Card
+     */
     public void newCard(Card newCard) {
         setCardAcceptor(new CardAcceptor(newCard));
     }
 
     /**
      * Метод отправки данных на сокет сервер банка
-     * результат заносится в поля operationStatus и operationResult
-     * @param data строка с данными
+     * @param data json строка с данными
+     * @return hashmap с ответом сервера преобразоаваный из json
      */
     private Map<String, String> sendDataToTheBank(String data) throws AtmException {
         SocketClient connection = new SocketClient();
@@ -89,35 +100,12 @@ public class Atm {
         return response;
     }
 
-    public void checkPinStart(Scanner pin) throws Exception {
-        checkPin(pin.nextLine());
-    }
-
-    public void checkPinAskPin(){
-        System.out.println("Пожалуйста введите pin код");
-    }
-
-    public boolean errorHappened() throws AtmException{
-        System.out.println("Произошла ошибка. Повторить дейстивие?");
-        System.out.println("1.Да 2.Нет");
-        Scanner nextMove = new Scanner(System.in);
-        if (nextMove.hasNextLine()) {
-            if (nextMove.nextInt() == 1 || nextMove.nextLine().equals("Да")) {
-                return true;
-            } else if (nextMove.nextInt() == 2 || nextMove.nextLine().equals("Нет")) {
-                eject();
-                return false;
-            }
-        }
-        return false;
-    }
-
     /**
      * Метод прооверки соотвествия введеного пинкода сохраненному в банке
-     * Собирает два массива
-     * 1. Массив с ключами где 0 элемент = "command"
-     * 2. Массив со значениями где 0 элемент = "check_pin"
-     * Отправлет массивы на преобразование в json
+     * Собирает hashmap коллекцию
+     * где 0 ключ    = "command"
+     * где 0 элемент = "check_pin"
+     * Преобразует коллекцию в json
      * Отправлет json на сервер
      * @param enteredPinCode строка с введенным пин кодом
      */
@@ -133,19 +121,13 @@ public class Atm {
                 String hashedPinCode = Hashing.sha256()
                         .hashString(enteredPinCode, StandardCharsets.UTF_8)
                         .toString();
-                String[] keys = new String[5];
-                keys[0] = "command";
-                keys[1] = "pin";
-                keys[2] = "card_number";
-                keys[3] = "expiration_date";
-                keys[4] = "name";
-                String[] values = new String[5];
-                values[0] = "check_pin";
-                values[1] = hashedPinCode + "";
-                values[2] = cardAcceptor.getAccountNumber() + "";
-                values[3] = cardAcceptor.getExpirationDate() + "";
-                values[4] = cardAcceptor.getHolder() + "";
-                String json = makeJson(keys, values);
+                Map<String, String> toJson = new HashMap<>();
+                toJson.put("command", "check_pin");
+                toJson.put("pin", hashedPinCode + "");
+                toJson.put("card_number", cardAcceptor.getAccountNumber());
+                toJson.put("expiration_date", cardAcceptor.getExpirationDate());
+                toJson.put("name", cardAcceptor.getHolder());
+                String json = makeJson(toJson);
                 Map<String,String> result = sendDataToTheBank(json);
                 if(result.get("status").equals("true")) {
                     setOperationStatus(true);
@@ -188,36 +170,56 @@ public class Atm {
     }
 
     /**
-     * Метод формирующий json строку по средствам двух массивов с одинаковой длинной
-     * @param key Массив ключей
-     * @param value Масссив значений
+     * Метод формирующий json строку из hashmap коллекции
+     * @param toJson hashmap
      * @return String формата json
      */
-    private String makeJson(String[] key, String[] value) {
+    private String makeJson(Map<String, String> toJson) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
-        Map<String, String> toJson = new HashMap<>();
-        if(key.length == value.length) {
-            for(int i=0; i< key.length; i++) {
-                toJson.put(key[i], value[i]);
-            }
-        }
         return gson.toJson(toJson);
     }
 
     /**
+     * Метод генерации 7 символьной строки
+     * для унификации запущенного экземпляра класса
+     */
+    public String generateRandomHash() {
+        int leftLimit = 97;
+        int rightLimit = 122;
+        int targetStringLength = 7;
+        Random random = new Random();
+        StringBuilder buffer = new StringBuilder(targetStringLength);
+        for (int i = 0; i < targetStringLength; i++) {
+            int randomLimitedInt = leftLimit + (int)
+                    (random.nextFloat() * (rightLimit - leftLimit + 1));
+            buffer.append((char) randomLimitedInt);
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * Метод формирует строку на получение данных по карте и отправляет ее на сервер
+     * @return
+     * @throws AtmException
+     */
+    private Map<String,String> getDataFromBank() throws AtmException {
+        CardAcceptor cardAcceptor = getCardAcceptor();
+        Map<String, String> toJson = new HashMap<>();
+        toJson.put("command", "get_data");
+        toJson.put("card_number", cardAcceptor.getAccountNumber());
+        String json = makeJson(toJson);
+        return sendDataToTheBank(json);
+    }
+
+    /**
      * Метод отправки запроса на сервер банка с получением данных по соотвествующей карте
+     * Ответ записывается в
+     * operationStatus
+     * operationResult
      */
     public void getDataFromBankAccount() throws AtmException {
-        CardAcceptor cardAcceptor = getCardAcceptor();
-        String[] keys = new String[2];
-        keys[0] = "command";
-        keys[1] = "card_number";
-        String[] values = new String[2];
-        values[0] = "get_data";
-        values[1] = cardAcceptor.getAccountNumber() + "";
-        String json = makeJson(keys, values);
-        Map<String,String> result = sendDataToTheBank(json);
+        Map<String,String> result = getDataFromBank();
         if(result.get("status").equals("ok")) {
             setOperationStatus(true);
             setOperationResult("Здравсвуйте " + result.get("name") + "\nВаш баланс счета: " + result.get("balance"));
@@ -239,15 +241,74 @@ public class Atm {
         }
     }
 
-    public void giveOptions() {
-        System.out.println("Выберите действие:");
-        System.out.println("1.Оплата счета\n2.Внесение наличных на счет\n3.Снятие со счета\n0.Возврат карты");
+    /**
+     * Метод формирует строку в которой описывается кол-во доступных купур в банкомате
+     */
+    public void checkOutputCassette() {
+        Map<String,String> billsAvailable = dispenser.checkCassette();
+        LinkedList<String> available = new LinkedList<>(billsAvailable.keySet());
+        String outputBills = "Купюры в банкомате:\n";
+        available.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
+        for(String i : available) {
+            int bill = Integer.parseInt(billsAvailable.get(i));
+            if(bill >= 500) outputBills += i + ": много";
+            if(bill < 500 && bill >= 100) outputBills += i + ": средне";
+            if(bill < 100 && bill > 0) outputBills += i + ": мало";
+            if(bill == 0) outputBills += i + ": нет";
+            if(!available.getLast().equals(i)) outputBills += ", ";
+        }
+        System.out.println(outputBills);
     }
 
     /**
-     * Метод отправки команды на диспенсер с выдачей суммы со счет клиента
+     * Метод запрашивает данные по карте у банка и возвращает баланс
+     * @return int баланс счета
+     * @throws AtmException
      */
-    public void getMoneyFromBankAccount() {
+    public int getSumFromBankAccount() throws AtmException {
+        Map<String,String> result = getDataFromBank();
+        return Integer.parseInt(result.get("balance"));
+    }
+
+    private boolean isAllGood(String yesNoAskString) {
+        System.out.println(yesNoAskString);
+        System.out.println("1.Да 2.Нет");
+        Scanner nextMove = new Scanner(System.in);
+        if (nextMove.hasNextLine()) {
+            String answer = nextMove.nextLine();
+            if (isNumeric(answer)) {
+                if(Integer.parseInt(answer) == 1) return true;
+                else if(Integer.parseInt(answer) == 2) return false;
+            } else {
+                if (answer.equals("Да")) return true;
+                else if(answer.equals("Нет")) return false;
+            }
+        }
+        return false;
+    }
+
+    public void chooseSumToWithdraw(int sum) throws AtmException {
+        int maxSum = getSumFromBankAccount();
+        if(sum > maxSum) {
+            System.out.println("На вашем счету лишь " + maxSum);
+            if(isAllGood("Снять все деньги?")){
+                sum = maxSum;
+            } else {
+                return;
+            }
+        }
+        int newSum = dispenser.checkSum(sum);
+        if(dispenser.isError()) {
+            System.out.println(dispenser.getErrorDescription());
+            if(isAllGood("Продолжить с новой суммой?")) {
+                sum = newSum;
+            } else {
+                return;
+            }
+        }
+        dispenser.prepareSum(sum); //Подготавливаем сумму
+        //Создаем транзакцию
+
     }
 
     /**
@@ -258,383 +319,91 @@ public class Atm {
     }
 
     /**
-     * Метод отправки команды в диспенсер
-     * на ваыдачу суммы денег
-     */
-    public void billsDispensing() {
-    }
-
-    /**
      * Метод отправки команды на сервер банка
      * на внесение суммы на счет клиента
      */
-    public int putBillsOnBankAccount(int maxSumInClientWallet, Map<String, String> availableBills) {
+    public int putBillsOnBankAccount(int maxSumInClientWallet, Map<String, String> availableBills) throws AtmException {
         int summ = billAcceptor.openBillAcceptor(maxSumInClientWallet, availableBills);
         System.out.println("Вы добавили денег на сумму " + billAcceptor.getBillAcceptorSum());
+        makeBankTransaction("new_transaction_add_money", billAcceptor.getBillAcceptorSum());
         System.out.println("1.Внести на счет 2.Добавить сумму 3.Вернуть деньги");
         System.out.println("Типа саздаю транзакцию");
-        //TODO: createBankTransaction();
         return summ;
     }
 
-    public void endTransaction() {
-        System.out.println("Типа финалю транзакцию");
+    public void makeBankTransaction(String command, int added) throws AtmException {
+        Map<String, String> toJson = new HashMap<>();
+        toJson.put("command", command);
+        toJson.put("atm_hash", getUniqHash());
+        toJson.put("card_number", getCardAcceptor().getAccountNumber());
+        toJson.put("sum", String.valueOf(added));
+        sendTransaction(toJson);
     }
 
-    public void getMoneyBack() {
-        System.out.println("Типа отдал бабосик");
+    public void comitTransaction(String command) throws AtmException {
+        Map<String, String> toJson = new HashMap<>();
+        toJson.put("command", command);
+        toJson.put("atm_hash", getUniqHash());
+        toJson.put("card_number", getCardAcceptor().getAccountNumber());
+        toJson.put("sum", "");
+        sendTransaction(toJson);
+        if(isAllGood("Напечатать чек?")) {
+            printer.print(command, "atm_hash", "card_number", "sum");
+        }
+    }
+
+    public void rollbackTransaction(String command) throws AtmException {
+        Map<String, String> toJson = new HashMap<>();
+        toJson.put("command", command);
+        toJson.put("atm_hash", getUniqHash());
+        toJson.put("card_number", getCardAcceptor().getAccountNumber());
+        toJson.put("sum", "");
+        sendTransaction(toJson);
+    }
+
+    private void sendTransaction(Map<String,String>toJson) throws AtmException {
+        String json = makeJson(toJson);
+        Map<String,String> result = sendDataToTheBank(json);
+        if(result.get("status").equals("true")) {
+            setOperationStatus(true);
+            System.out.println("ok");
+            setOperationResult("1");
+        } else {
+            setOperationStatus(false);
+            System.out.println("foo");
+            setOperationResult("2");
+        }
     }
 
     /**
-     * Метод проверкки даты истечения срока действия карты
+     * Метод обнуляет купюроприемник
      */
-    public void checkCardExpiration(){
+    public void getMoneyBack() {
+        billAcceptor.setBillAcceptorContains(new HashMap<>());
     }
 
     /**
-     * Метод отправки команды выдать карту в картоприемник
+     * Метод отправки команды выдать карту из картоприемника
      */
     public void eject() throws AtmException{
         setOperationCritical(false);
         cardAcceptor.cardEject();
     }
-}
-
-/**
- * Класс описывающий приемник купюр
- */
-class BillAcceptor implements Receiving {
-
-    private Map<Integer, Integer> billAcceptorContains = new HashMap<>();
-    private Map<Integer, Integer> inputCassette;
-    private TimerTask task;
-
-    public BillAcceptor(){
-        inputCassette = checkInputCassette();
-    }
-
-    public Map<Integer, Integer> getBillAcceptorContains() {
-        return billAcceptorContains;
-    }
 
     /**
-     * Геттер суммы по контейнеру валюты
-     * @return сумма купюр
-     */
-    public int getBillAcceptorSum() {
-        Map<Integer, Integer> container = getBillAcceptorContains();
-        Object[] bills = container.keySet().toArray();
-        int sum = 0;
-        for (Object i : bills) {
-            sum += Integer.valueOf((Integer) i) * container.get(Integer.valueOf((Integer) i));
-        }
-        return sum;
-    }
-
-    /**
-     * Сеттер временного хранилица валюты
-     * Суммирует кол-во купюр из текущего и нового
-     * Если пришел пустой контейнер обнуляет текущий
-     * @param billAcceptorContains колекция в формате <Номинал = Кол-во>
-     */
-    public void setBillAcceptorContains(Map<Integer, Integer> billAcceptorContains) {
-        Map<Integer, Integer> billsInAcceptor = getBillAcceptorContains();
-        if(billsInAcceptor.isEmpty()) {
-            this.billAcceptorContains = billAcceptorContains;
-        } else {
-            if (!billAcceptorContains.isEmpty()) {
-                List<Integer> bills = new LinkedList<>(billAcceptorContains.keySet());
-                for (Integer i : bills) {
-                    int nowAdd = billAcceptorContains.get(i);
-                    if(billsInAcceptor.containsKey(i)) {
-                        int nowIn = billsInAcceptor.get(i);
-                        billsInAcceptor.put(i, nowIn + nowAdd);
-                    } else {
-                        billsInAcceptor.put(i, nowAdd);
-                    }
-                }
-                this.billAcceptorContains = billsInAcceptor;
-            } else {
-                this.billAcceptorContains = billAcceptorContains;
-            }
-        }
-    }
-
-    public Map<Integer, Integer> getInputCassette() {
-        return inputCassette;
-    }
-
-    public void setInputCassette(Map<Integer, Integer> inputCassette) {
-        this.inputCassette = inputCassette;
-    }
-
-    private Map<Integer, Integer> checkInputCassette() {
-        File atmSafe = new File("src/main/java/Atm/atm_safe");
-        Scanner atmSafeData = null;
-        try {
-            atmSafeData = new Scanner(atmSafe);
-        } catch (FileNotFoundException e) {
-            System.out.println("Сейф вскрыт, кассеты отсутвуют");
-        }
-        String data = "";
-        assert atmSafeData != null;
-        if (atmSafeData.hasNextLine()) {
-            data = atmSafeData.nextLine();
-        }
-        GsonBuilder builder = new GsonBuilder();
-        Gson gson = builder.create();
-        Map<String, Map<Integer, Integer>> result = gson.fromJson(data, HashMap.class);
-        return result.get("input_cassette");
-
-    }
-
-    /**
-     * Метод открытия агрегата
-     * @return
-     */
-    public int openBillAcceptor(int maxUCan, Map<String, String> availableBills) {
-        System.out.println( "Пожалуйста положите купюру или пачку в купюроприемник" );
-        String error = "Пожалуйста укажите сумму которую вы хотелибы внести на счет\n";
-        Map<Integer, Integer> money = new HashMap<>();
-        try {
-            BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-            long startTime = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - startTime) < Atm.DELAYTIME * 1000
-                && !in.ready()) {
-            }
-            if (in.ready()) {
-                String newLine = in.readLine();
-                if(Integer.parseInt(newLine) <= maxUCan) {
-                    try {
-                        money = getBillsFromWallet(Integer.parseInt(newLine), availableBills);
-                        setBillAcceptorContains(money);
-                    } catch (Error e) {
-                        System.out.println("Не хватает соответсвующих купюр для внесегия нужной суммы");
-                    }
-                } else {
-                    System.out.println("Нехватает наличных для внесения полной суммы");
-                    System.out.println("Будет внесено " + maxUCan);
-                    money = getBillsFromWallet(maxUCan, availableBills);
-                    setBillAcceptorContains(money);
-                }
-            } else {
-                System.out.println("В купрюроприемнике отсутсвуют купюры");
-            }
-        } catch (IOException | NumberFormatException e) {
-            System.out.println(error);
-        }
-        return sumMoneyOnIteration(money);
-    }
-
-    /**
-     * Метод считает сумму из коллекции формата <номинал=кол-во>
-     * @param money карта
-     * @return int сумма
-     */
-    public int sumMoneyOnIteration(Map<Integer, Integer> money) {
-        List<Integer> bills = new ArrayList<>(money.keySet());
-        int sum = 0;
-        for (Integer i : bills) {
-            sum += i * money.get(i);
-        }
-        return sum;
-    }
-
-    /**
-     * Метод выбирает купюры из массива доступных пока не наберется указанная сумма
-     * @param neededMoney int указанная сумма
-     * @param availableMoney map доступные купюры
-     * @return map коллекция выбранных купюр
-     */
-    public Map<Integer, Integer> getBillsFromWallet(int neededMoney, Map<String, String>availableMoney) {
-        List<String> allBills =  new LinkedList<>(availableMoney.keySet());
-        allBills.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
-        Map<Integer, Integer> money = new HashMap<>();
-        for(String i : allBills) {
-            int bill = Integer.parseInt(i);
-            if(neededMoney >= bill) {
-                int needBillAmount = neededMoney/bill;
-                int billAmountAvailable = Integer.parseInt(availableMoney.get(i));
-                if(billAmountAvailable >= needBillAmount) {
-                    neededMoney = neededMoney%bill;
-                    money.put(bill, needBillAmount);
-                    if(neededMoney == 0) break;
-                } else if(billAmountAvailable > 0) {
-                    neededMoney = neededMoney - (bill*billAmountAvailable);
-                    money.put(bill, billAmountAvailable);
-                }
-            }
-        }
-        if(neededMoney != 0) throw new Error();
-        return money;
-    }
-
-    /**
-     * Метод закрытия агрегата
-     * Запускает метод receive
-     */
-    public void closeBillAcceptor(){
-    }
-
-    /**
-     * Реализация метода интерфейса receiving
-     * Проверет наличие денег
-     * пересичитывает их и определяет наминал
-     */
-    @Override
-    public void receive() {
-    }
-}
-
-/**
- * Класс описывающий картоприемник
- */
-class CardAcceptor implements Receiving {
-    private Card insertedCard;
-    private boolean cardInside;
-
-    private String accountNumber;
-    private String expirationDate;
-    private String holder;
-
-    /**
-     * Конструктор класса,
-     * Получает карту и данные с нее
-     * @param newCard Card
-     */
-    public CardAcceptor(Card newCard) {
-        insertedCard = newCard;
-        receive();
-        cardInside = isValidCard(newCard);
-    }
-
-    /// get+set ///
-
-    public boolean getCardInside() {
-        return cardInside;
-    }
-
-    private void setAccountNumber(String accountNumber) {
-        this.accountNumber = accountNumber;
-    }
-
-    public String getAccountNumber(){
-        return accountNumber;
-    }
-
-    /**
-     * Сеттер поля expirationDate
-     * Переводит дату хранящуюся на карте в unix_timestamp
-     * @param expirationDate Строка с датой
-     */
-    private void setExpirationDate(String expirationDate) {
-        SimpleDateFormat dateFormat = new SimpleDateFormat("MM/yyyy");
-        Date parsedDate;
-        try {
-            parsedDate = dateFormat.parse(expirationDate);
-            this.expirationDate = parsedDate.getTime()/1000 + "";
-        } catch (ParseException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public String getExpirationDate(){
-        return expirationDate;
-    }
-
-    private void setHolder(String holder) {
-        this.holder = holder;
-    }
-
-    public String getHolder(){
-        return holder;
-    }
-
-    /// get+set ///
-
-    /**
-     * Реализация метода из интрефейса Receiving
-     * Получет данные с карты и раскладывает их по
-     * соотвествующим полям
-     */
-    @Override
-    public void receive() {
-        assert insertedCard != null;
-        List<String> insertedCardData = insertedCard.getCardData();
-        for(String line : insertedCardData) {
-            if (line.length() == 16 && isNumeric(line)) setAccountNumber(line);
-            if (line.contains("/")) setExpirationDate(line);
-            if (line.contains(" ")) setHolder(line);
-        }
-    }
-
-    /**
-     * Вывод карты
-     */
-    public void cardEject() throws AtmException {
-        insertedCard = null;
-        cardInside = false;
-        throw new AtmException("Заберите карту\n\n", true);
-    }
-
-    /**
-     * Проверка карты на валидность
-     * проверяет по маске значиеня на карте
-     * @param newCard объект класса Card
+     * Простейшая проверка на целочесленное значение
+     * @param string проверяемая строка
      * @return boolean
      */
-    private boolean isValidCard(Card newCard){
-        boolean isValid = false;
-        if(Objects.nonNull(accountNumber) && isNumeric(accountNumber) && accountNumber.length() == 16) {
-            isValid = true;
-        }
-        return isValid;
-    }
-
-    /**
-     * Проверяет строку на полное содержание цифр
-     * @param str строка на проверку
-     * @return boolean результат проверки
-     */
-    public static boolean isNumeric(String str) {
-        if (str == null) {
+    private boolean isNumeric(String string) {
+        try {
+            Integer.parseInt(string);
+            return true;
+        } catch (NumberFormatException e) {
             return false;
         }
-        int strSize = str.length();
-        for (int i = 0; i < strSize; i++) {
-            if (!Character.isDigit(str.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 }
-
-/**
- * Класс отвечаеющий за расчет и выдачу денег
- */
-class Dispenser implements Issuing {
-    private boolean billsInTheDispenser;
-    private short billsInTheDispenserCount;
-    private HashMap<Integer, Integer> arrayOfBillsInTheDispenser = new HashMap<>();
-    /**
-     * Метод проверящий доступное количество купюр всех достпупных наминалов
-     */
-    public void checkAvailableBills() {
-    }
-}
-
-/**
- * Класс отвечающий за формирование и выдачу чеков
- */
-class Printer implements Issuing {
-    private int receiptPaper;
-    private boolean receiptPaperError;
-
-    public void createNewReceipt(){
-    }
-}
-
 
 /**
  * Класс клиент связи с сервером банка
