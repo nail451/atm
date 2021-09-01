@@ -7,7 +7,7 @@ import java.util.Scanner;
 
 public class index {
     public static void main(String[] args) throws IOException {
-        Client client = new Client();
+        Client client = Client.getInstance();
         InteractiveAtm atm = Atm.getInstance();
         while (true) {
             try {
@@ -44,12 +44,10 @@ public class index {
                     }
                     System.out.println("\n" + atm.getOperationResult() + "\n\n");
                     System.out.println("Выберите действие:");
-                    System.out.println("1.Оплата счета\n2.Внесение наличных на счет\n3.Снятие со счета\n0.Возврат карты");
+                    System.out.println("1.Внесение наличных на счет\n2.Снятие со счета\n3.Оплата счета\n0.Возврат карты");
                     Scanner optionId = new Scanner(System.in);
-                    int id = optionId.nextInt();
-                    if(id == 1) {
-                        atm.payChecks();
-                    } else if(id == 2) {
+                    String id = optionId.nextLine();
+                    if(id.equals("1")) {
                         client.checkWallet();
                         while (true) {
                             int added = atm.putBillsOnBankAccount(client.getSum(), client.getAvailableBills());
@@ -57,23 +55,25 @@ public class index {
                             System.out.println(client.getAvailableBills());
                             client.calculateFromWallet(added);
                             System.out.println(client.getAvailableBills());
-                            int option = new Scanner(System.in).nextInt();
-                            if (option == 1) { //Комитим транзакцию и забераем деньги из клиентского кошелька
-                                client.changeWalletContains(client.getAvailableBills());
+                            String option = new Scanner(System.in).nextLine();
+                            if (option.equals("1")) { //Комитим транзакцию и забераем деньги из клиентского кошелька
+                                if(client.changeWalletContains(client.getAvailableBills())){
+                                    System.out.println("Деньги изъяты  из кошелька");
+                                }
                                 atm.getMoneyBack();
                                 atm.commit();
                                 break;
-                            } else if (option == 3) { //Отменяем транзацию переписываем кошелек и обнуляем купюроприемник
+                            } else if (option.equals("3")) { //Отменяем транзацию переписываем кошелек и обнуляем купюроприемник
                                 client.checkWallet();
                                 atm.getMoneyBack();
                                 atm.rollback();
                                 break;
                             } //В наличии еще option == 2 (Добавить к транзакции) но он просто запускает след итерацию
                         }
-                    } else if(id == 3) {
+                    } else if(id.equals("2")) {
                         atm.checkOutputCassette();
                         while (true) {
-                            System.out.println("Снять все деньги со счета или часть?");
+                            System.out.println("\n\nСнять все деньги со счета или часть?");
                             System.out.println("Внимание: банкомат может выдоавать только суммы кратные 100");
                             System.out.println("1.Снять все\n2.Указать сумму\n0.Отмена");
                             Scanner optionWithdraw = new Scanner(System.in);
@@ -82,8 +82,8 @@ public class index {
                             if(option == 1) {
                                 sum = atm.getSumFromBankAccount();
                             } else if(option == 2) {
-                                    System.out.println("Пожалуйста введите сумму:");
-                                    sum = new Scanner(System.in).nextInt();
+                                System.out.println("Пожалуйста введите сумму:");
+                                sum = new Scanner(System.in).nextInt();
                             } else {
                                 break;
                             }
@@ -91,18 +91,20 @@ public class index {
                                 try {
                                     atm.chooseSumToWithdraw(sum);
                                 } catch (Error e) {
-                                    break;
+                                    continue;
                                 }
                                 if(atm.askCommit()) {
+                                    client.putBillsInTheWallet(atm.giveMoney());
                                     atm.commit();
                                 } else {
                                     atm.rollback();
+                                    continue;
                                 }
-                                break;
-                            } else {
                                 break;
                             }
                         }
+                    } else if(id.equals("3")) {
+                        atm.payChecks();
                     } else {
                         atm.eject();
                     }

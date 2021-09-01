@@ -312,6 +312,16 @@ public class Atm implements InteractiveAtm {
     }
 
     /**
+     * Метод возвращется содержимое диспенсера и очищает его
+     * @return коллекция
+     */
+    public Map<String,String> giveMoney() {
+        Map<String,String> money = getDispenser().getBillsInTheDispenser();
+        getDispenser().setBillsInTheDispenser(new HashMap<String,String>());
+        return money;
+    }
+
+    /**
      * Метод перевода суммы со счета клиента
      * на счет компании
      */

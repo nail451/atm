@@ -38,4 +38,6 @@ public interface InteractiveAtm {
 
     void chooseSumToWithdraw(int sum) throws AtmException;
 
+    Map<String,String> giveMoney();
+
 }
