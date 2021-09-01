@@ -10,7 +10,7 @@ import java.util.*;
 /**
  * Класс отвечаеющий за расчет и выдачу денег
  */
-class Dispenser implements Issuing {
+class Dispenser {
 
     private Map<String,String> billsInTheDispenser;
     private Map<String,String> cassette;
@@ -90,15 +90,21 @@ class Dispenser implements Issuing {
             }
         }
         if(sumLeft > 0) {
-            setError(true);
-            setErrorDescription("Максимальная сумма которую сможет выдать банкомат: " + (sum - sumLeft));            
+            if(sum - sumLeft == 0) {
+                setError(true);
+                setErrorDescription("Банкомат не может выдать указанную сумму");
+            } else {
+                setError(true);
+                setErrorDescription("Максимальная сумма которую сможет выдать банкомат: " + (sum - sumLeft));
+            }
         }
         return sum-sumLeft;
     }
 
     public void prepareSum(int sum) {
-        Map<String, String> billsInDispenser = new HashMap<>();
+
         Map<String,String> cassette = getCassette();
+        Map<String, String> billsInDispenser = new HashMap<>();
         List<String> availableBills = new LinkedList<>(cassette.keySet());
         availableBills.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
         int sumLeft = sum;

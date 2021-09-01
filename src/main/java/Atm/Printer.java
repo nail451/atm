@@ -3,7 +3,7 @@ package Atm;
 /**
  * Класс отвечающий за формирование и выдачу чеков
  */
-class Printer implements Issuing {
+class Printer {
     private int receiptPaper;
     private boolean receiptPaperError;
 

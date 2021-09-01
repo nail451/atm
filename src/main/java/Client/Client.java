@@ -151,10 +151,13 @@ public class Client {
         Map<String,String>money = getAvailableBills();
         for(String bill : availableBIlls) {
             int newBill = Integer.parseInt(bill);
-            int amount = Integer.parseInt(money.get(bill)) - sum/newBill;
-            if(sum/newBill > 0 && amount >= 0) {
-                money.put(bill, String.valueOf(amount));
-                sum = sum-(newBill*(sum/newBill));
+            int amount = Integer.parseInt(money.get(bill));
+            while (amount > 0) {
+                if(sum >= newBill) {
+                    amount--;
+                    money.put(bill, String.valueOf(amount));
+                    sum = sum - newBill;
+                } else break;
             }
         }
         setAvailableBills(money);

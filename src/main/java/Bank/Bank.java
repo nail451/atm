@@ -3,14 +3,13 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import Bank.Commands.Command;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
-
-import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
 
 
@@ -25,6 +24,28 @@ public class Bank {
     private BufferedReader in;
     private static BankController bankController;
 
+    public ServerSocket getServerSocket() { return serverSocket; }
+
+    public void setServerSocket(ServerSocket serverSocket) { this.serverSocket = serverSocket; }
+
+    public Socket getClientSocket() { return clientSocket; }
+
+    public void setClientSocket(Socket clientSocket) { this.clientSocket = clientSocket; }
+
+    public PrintWriter getOut() { return out; }
+
+    public void setOut(PrintWriter out) { this.out = out; }
+
+    public BufferedReader getIn() { return in; }
+
+    public void setIn(BufferedReader in) { this.in = in; }
+
+    public static BankController getBankController() { return bankController; }
+
+    public static void setBankController(BankController bankController) { Bank.bankController = bankController; }
+
+
+
     /**
      * Инициализация сокет сервера
      * @param args стандартное описание метода main
@@ -32,7 +53,7 @@ public class Bank {
      */
     public static void main(String[] args) throws IOException, SQLException {
         Bank socketServer = new Bank();
-        bankController = new BankController();
+        setBankController(BankController.getInstance());
         socketServer.serverStart(451);
     }
 
@@ -43,59 +64,17 @@ public class Bank {
      * @throws SQLException ошибка sql
      */
     public void serverStart(int listeningPort) throws IOException, SQLException {
-        serverSocket = new ServerSocket(listeningPort);
-        clientSocket = serverSocket.accept();
-        out = new PrintWriter(clientSocket.getOutputStream(), true);
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-        String request = in.readLine();
+        setServerSocket(new ServerSocket(listeningPort));
+        setClientSocket(getServerSocket().accept());
+        setOut(new PrintWriter(getClientSocket().getOutputStream(), true));
+        setIn(new BufferedReader(new InputStreamReader(getClientSocket().getInputStream())));
+        String request = getIn().readLine();
         if(isJsonValid(request)) {
-            GsonBuilder builder = new GsonBuilder();
-            Gson gson = builder.create();
-            HashMap<String, String> result = gson.fromJson(request, HashMap.class);
-            switch (result.get("command")) {
-                case "check_connection" -> {
-                    System.out.println("hello");
-                    out.println("hello");
-                }
-                case "check_pin" -> out.println(
-                        makeJson(
-                                pinCheck(
-                                        result.get("pin"),
-                                        result.get("card_number"),
-                                        result.get("expiration_date"),
-                                        result.get("name"))));
-                case "get_data" -> out.println(
-                        makeJson(
-                                getUserData(
-                                        result.get("card_number"))));
-                case "new_transaction_add_money" -> out.println(
-                        makeJson(
-                                transactionForAddMoney(
-                                        result.get("atm_hash"),
-                                        result.get("card_number"),
-                                        result.get("sum"),
-                                        1)));
-                case "rollback_add_money_transaction" ->
-                        out.println(
-                                makeJson(
-                                        transactionForAddMoney(
-                                                result.get("atm_hash"),
-                                                result.get("card_number"),
-                                                "",
-                                                2)));
-                case "commit_add_money_transaction" ->
-                        out.println(
-                                makeJson(
-                                        transactionForAddMoney(
-                                                result.get("atm_hash"),
-                                                result.get("card_number"),
-                                                "",
-                                                3)));
-                default -> {
-                    System.out.println("unrecognised greeting");
-                    out.println("unrecognised greeting");
-                }
-            }
+            Gson gson = new Gson();
+            Map<String, Map<String,String>> result = gson.fromJson(request, Map.class);
+            String className = result.get("command").get("command");
+            Map<String,String> toClassFields = result.get("toClass");
+            getOut().println(makeJson(execute(className, toClassFields)));
         }
         serverStop(); //Коннект все равно рушится, так что подчищаем за собой
         serverStart(listeningPort);  //Запускаем сервер по новой
@@ -106,12 +85,37 @@ public class Bank {
      * @throws IOException ошибка ввода вывода
      */
     public void serverStop() throws IOException {
-        in.close();
-        out.close();
-        clientSocket.close();
-        serverSocket.close();
+        getIn().close();
+        getOut().close();
+        getClientSocket().close();
+        getServerSocket().close();
     }
 
+    /**
+     * Инициализация класса спомошью рефлексии
+     * После инстанциации запускает метод интерфейса Command.retrieveResult
+     * @return коллекция
+     * @throws SQLException
+     */
+    private Map<String,String> execute(String name, Map<String, String> fields) throws SQLException {
+        try {
+            int id = 1;
+            String className = "Bank.Commands." + name;
+            Class clazz = Class.forName(className);
+            Class[] params = {int.class, Map.class};
+            Command command = (Command) clazz.getConstructor(params).newInstance(id, fields);
+            return command.retrieveResult();
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    /**
+     * Метод формирует json из коллекции для ответа клиенту
+     * @param map коллекция <String, String>
+     * @return строка формата json
+     */
     private String makeJson(Map<String, String> map) {
         GsonBuilder gsonBuilder = new GsonBuilder();
         Gson gson = gsonBuilder.create();
@@ -131,28 +135,4 @@ public class Bank {
     }
 
 
-    /**
-     * @param pinCode пин код
-     * @param accountNumber номер карты
-     * @param expirationDate дата валидности в unixtime
-     * @param holderName Имя и Фамилия владельца
-     * @return HashMap
-     * @throws SQLException ошибка sql
-     */
-    public Map<String, String> pinCheck(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
-        return bankController.checkCardData(pinCode, accountNumber, expirationDate, holderName);
-    }
-
-    /**
-     * @param accountNumber номер карты
-     * @return HashMap
-     * @throws SQLException ошибка sql
-     */
-    public Map<String, String> getUserData(String accountNumber) throws SQLException {
-        return bankController.getUserByCardData(accountNumber);
-    }
-
-    public Map<String, String> transactionForAddMoney(String atmHash, String cardNumber, String sum, int action) {
-        return bankController.addSomeMoneyToTheBankAccount(atmHash, cardNumber, sum, action);
-    }
 }

@@ -13,6 +13,7 @@ import java.util.Properties;
  */
 public class BankController{
 
+    private static BankController instance;
     private Map<String, Connection> connectionMap = new HashMap<>();
     private Map<String, Savepoint> savePointMap = new HashMap<>();
     private Map<String, PreparedStatement> statementMap = new HashMap<>();
@@ -36,13 +37,30 @@ public class BankController{
     public void removeFromStatementMap(String hash) { this.statementMap.remove(hash); }
 
     /**
+     * Приватный конеструктор класса, как часть singleton
+     */
+    private BankController(){
+    }
+
+    /**
+     * Реализация шаблона singleton, создаем instance только в том случае если его нет
+     * @return instance
+     */
+    public static BankController getInstance() {
+        if (instance == null) {
+            instance = new BankController();
+        }
+        return instance;
+    }
+
+    /**
      * Метод создания подключения к базе
      * Подключение без авто комита, так что
      * для завершения транзации используем commit
      * Реквизиты к базе данных указываются в файле
      * resources/config.properties
      */
-    public Connection createNewConnection() {
+    public Connection createNewConnection(boolean autoCommit) {
         FileInputStream fis;
         Properties property = new Properties();
         Connection dbConnection = null;
@@ -53,7 +71,7 @@ public class BankController{
             String login = property.getProperty("db.login");
             String password = property.getProperty("db.password");
             dbConnection = DriverManager.getConnection(host, login, password);
-            dbConnection.setAutoCommit(false);
+            dbConnection.setAutoCommit(autoCommit);
         } catch (IOException e) {
             System.err.println("ОШИБКА: Конфигурационный файл отсуствует.");
         } catch (SQLException q) {
@@ -97,8 +115,8 @@ public class BankController{
      * @return boolean
      * @throws SQLException ошибка sql
      */
-    public Map<String, String> checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName) throws SQLException {
-        Connection dbConnection = createNewConnection();
+    public Map<String, String> checkCardData(String pinCode, String accountNumber, String expirationDate, String holderName, boolean autoCommit) throws SQLException {
+        Connection dbConnection = createNewConnection(autoCommit);
         String query =
                 "SELECT " +
                     "count(*) " +
@@ -132,8 +150,8 @@ public class BankController{
      * @param accountNumber String номер карты
      * @return коллекция hashmap с ключами status, name, balance
      */
-    public Map<String, String> getUserByCardData(String accountNumber) throws SQLException {
-        Connection dbConnection = createNewConnection();
+    public Map<String, String> getUserByCardData(String accountNumber, boolean autoCommit) throws SQLException {
+        Connection dbConnection = createNewConnection(autoCommit);
         String query =
                 "SELECT " +
                     "cl.name, cl.soname, acs.balance, crd.card_status, acs.account_status, crd.expiration_date " +
@@ -149,13 +167,20 @@ public class BankController{
         java.util.Date today = new java.util.Date();
         java.sql.Timestamp nowTimeStamp = new java.sql.Timestamp(today.getTime());
         while (resultSet.next()){
+            boolean error = false;
             if(!resultSet.getString(4).equals("open")) {
                 response.put("status", "card_on_hold");
-            } else if(!resultSet.getString(5).equals("open")) {
+                error = true;
+            }
+            if(!resultSet.getString(5).equals("open")) {
                 response.put("status", "account_on_hold");
-            } else if(resultSet.getLong(6) > nowTimeStamp.getTime()){
+                error = true;
+            }
+            if(resultSet.getLong(6) < nowTimeStamp.getTime()/1000){
                 response.put("status", "expired");
-            } else {
+                error = true;
+            }
+            if(!error) {
                 response.put("status", "ok");
             }
             response.put("name", resultSet.getString(1) + " " + resultSet.getString(2));
@@ -165,51 +190,11 @@ public class BankController{
         return response;
     }
 
-    public Map<String, String> addSomeMoneyToTheBankAccount(String atmHash, String cardNumber, String sum, int action) {
-        Connection dbConnection;
-        Savepoint savepoint;
-        PreparedStatement statement;
+    public Map<String, String> makeTransaction(String atmHash, PreparedStatement preparedStatement) {
         Map<String, String> response = new HashMap<>();
         try {
-            switch (action) {
-                case 1 -> {
-                    if(getStatementMap().containsKey(atmHash)){
-                        dbConnection = getConnectionMap().get(atmHash);
-                        savepoint = getSavePointMap().get(atmHash);
-                        dbConnection.rollback(savepoint);
-                    } else {
-                        dbConnection = createNewConnection();
-                        savepoint = dbConnection.setSavepoint("savepoint");
-                        setConnectionMap(atmHash, dbConnection);
-                        setSavePointMap(atmHash, savepoint);
-                    }
-                    statement = makeAddMoneyQuery(dbConnection, sum, cardNumber);
-                    statement.executeUpdate();
-                    setStatementMap(atmHash, statement);
-                }
-                case 2 -> {
-                    dbConnection = getConnectionMap().get(atmHash);
-                    savepoint = getSavePointMap().get(atmHash);
-                    statement = getStatementMap().get(atmHash);
-                    dbConnection.rollback(savepoint);
-                    closeNoResultConnection(dbConnection, statement);
-                    removeFromConnectionMap(atmHash);
-                    removeFromSavePointMap(atmHash);
-                    removeFromStatementMap(atmHash);
-                }
-                case 3 -> {
-                    dbConnection = getConnectionMap().get(atmHash);
-                    savepoint = getSavePointMap().get(atmHash);
-                    statement = getStatementMap().get(atmHash);
-                    dbConnection.commit();
-                    dbConnection.releaseSavepoint(savepoint);
-                    closeNoResultConnection(dbConnection, statement);
-                    removeFromConnectionMap(atmHash);
-                    removeFromSavePointMap(atmHash);
-                    removeFromStatementMap(atmHash);
-                }
-                default -> throw new IllegalStateException("Unexpected value: " + action);
-            }
+            preparedStatement.executeUpdate();
+            setStatementMap(atmHash, preparedStatement);
             response.put("status", "true");
         } catch (SQLException s) {
             response.put("status", "false");
@@ -217,12 +202,59 @@ public class BankController{
         return response;
     }
 
-    private PreparedStatement makeAddMoneyQuery(Connection dbConnection, String sum, String cardNumber) throws SQLException {
+    private void setTransaction(String atmHash) throws SQLException {
+        Connection dbConnection;
+        Savepoint savepoint;
+        if(!getStatementMap().containsKey(atmHash)){
+            dbConnection = createNewConnection(false);
+            savepoint = dbConnection.setSavepoint("savepoint");
+            setConnectionMap(atmHash, dbConnection);
+            setSavePointMap(atmHash, savepoint);
+        }
+    }
+
+    public Map<String, String> finalTransaction(String atmHash, boolean isCommit) {
+        Connection dbConnection = getConnectionMap().get(atmHash);
+        Savepoint savepoint = getSavePointMap().get(atmHash);
+        PreparedStatement statement = getStatementMap().get(atmHash);
+        Map<String, String> response = new HashMap<>();
+        try {
+            if(isCommit) {
+                dbConnection.commit();
+                dbConnection.releaseSavepoint(savepoint);
+            } else {
+                dbConnection.rollback(savepoint);
+            }
+            response.put("status", "true");
+        } catch (SQLException s) {
+            response.put("status", "false");
+        }
+        closeNoResultConnection(dbConnection, statement);
+        removeFromConnectionMap(atmHash);
+        removeFromSavePointMap(atmHash);
+        removeFromStatementMap(atmHash);
+        return response;
+    }
+
+    /**
+     * Оформление и подготовка запроса на снятие денег со счета
+     * @param atmHash хэш банкомата
+     * @param sum сумма которую собираемся списывать
+     * @param cardNumber номер карты
+     * @return PreparedStatement подготовленный запрос
+     * @throws SQLException при возникновении ошибки банкомат получит status false
+     */
+    public PreparedStatement makeMoneyQuery(String atmHash, String sum, String cardNumber, String getOrPut) throws SQLException {
+        setTransaction(atmHash);
+        String math;
+        if(getOrPut.equals("put")) math = "+";
+        else math = "-";
+        Connection dbConnection = getConnectionMap().get(atmHash);
         String query =
                 "UPDATE " +
                     "accounts acc, plastic_cards pc " +
                 "SET " +
-                    "acc.balance = acc.balance + ? " +
+                    "acc.balance = acc.balance " + math + " ? " +
                 "WHERE acc.id = pc.account_id AND pc.account_number = ?";
         PreparedStatement statement = dbConnection.prepareStatement(query);
         statement.setString(1, sum);

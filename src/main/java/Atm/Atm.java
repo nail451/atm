@@ -3,20 +3,19 @@ package Atm;
 import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
+import Bank.Commands.*;
 import Card.Card;
 import com.google.common.hash.Hashing;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.*;
 
 /**
  * Основной класс описывающий работу банкомата
  */
-public class Atm {
+public class Atm implements InteractiveAtm {
 
+    private static Atm instance;
     private String uniqHash;
     private boolean operationCritical = false;
     private boolean operationStatus;
@@ -28,22 +27,17 @@ public class Atm {
     private final Printer printer = new Printer();
 
     /// get+set ///
+    private String getUniqHash() { return uniqHash; }
 
-    public String getUniqHash() { return uniqHash; }
-
-    public void setUniqHash(String uniqHash) { this.uniqHash = uniqHash; }
+    private void setUniqHash(String uniqHash) { this.uniqHash = uniqHash; }
 
     public boolean isOperationCritical() { return operationCritical; }
 
-    public boolean getOperationStatus() {
-        return operationStatus;
-    }
+    public boolean getOperationStatus() { return operationStatus; }
 
     public String getOperationResult() { return operationResult; }
 
-    public CardAcceptor getCardAcceptor() {
-        return cardAcceptor;
-    }
+    public CardAcceptor getCardAcceptor() { return cardAcceptor; }
 
     public int getFalseCounter() { return falseCounter; }
 
@@ -61,43 +55,38 @@ public class Atm {
 
     public void setFalseCounter(int falseCounter) { this.falseCounter = falseCounter; }
 
+    public BillAcceptor getBillAcceptor() { return billAcceptor; }
+
+    public Dispenser getDispenser() { return dispenser; }
+
+    public Printer getPrinter() { return printer; }
     /// get+set ///
 
     /**
-     * Конеструктор класса
+     * Приватный конеструктор класса, как часть singleton
      */
-    public Atm(){
+    private Atm(){
         System.out.println("Пожалуйста вставьте карту в картоприемник");
         setUniqHash(generateRandomHash());
+    }
+
+    /**
+     * Реализация шаблона singleton, создаем instance только в том случае если его нет
+     * @return instance
+     */
+    public static Atm getInstance() {
+        if (instance == null) {
+            instance = new Atm();
+        }
+        return instance;
     }
 
     /**
      * Метод объявляет новый экземпляр класса CardAcceptor и передает в него объект класса Card
      * @param newCard объект класса Card
      */
-    public void newCard(Card newCard) {
+    public void getCard(Card newCard) {
         setCardAcceptor(new CardAcceptor(newCard));
-    }
-
-    /**
-     * Метод отправки данных на сокет сервер банка
-     * @param data json строка с данными
-     * @return hashmap с ответом сервера преобразоаваный из json
-     */
-    private Map<String, String> sendDataToTheBank(String data) throws AtmException {
-        SocketClient connection = new SocketClient();
-        Map<String, String> response;
-        try {
-            connection.startConnection("127.0.0.1", 451);
-            String result = connection.sendMessage(data);
-            GsonBuilder builder = new GsonBuilder();
-            Gson gson = builder.create();
-            response = gson.fromJson(result, HashMap.class);
-            connection.stopConnection();
-        } catch (IOException e) {
-            throw new AtmException("Произошла ошибка подключения", false);
-        }
-        return response;
     }
 
     /**
@@ -110,7 +99,7 @@ public class Atm {
      * @param enteredPinCode строка с введенным пин кодом
      */
     public void checkPin(String enteredPinCode) throws Exception {
-        if(cardAcceptor.getCardInside()) {
+        if(getCardAcceptor().getCardInside()) {
             if(getFalseCounter()>=5) {
                 System.out.println("\n\n___Слишком много ошибок при вводе пин кода___");
                 setOperationCritical(true);
@@ -121,14 +110,18 @@ public class Atm {
                 String hashedPinCode = Hashing.sha256()
                         .hashString(enteredPinCode, StandardCharsets.UTF_8)
                         .toString();
-                Map<String, String> toJson = new HashMap<>();
-                toJson.put("command", "check_pin");
-                toJson.put("pin", hashedPinCode + "");
-                toJson.put("card_number", cardAcceptor.getAccountNumber());
-                toJson.put("expiration_date", cardAcceptor.getExpirationDate());
-                toJson.put("name", cardAcceptor.getHolder());
-                String json = makeJson(toJson);
-                Map<String,String> result = sendDataToTheBank(json);
+
+                Map<String, String> toClassFields = new HashMap<>();
+                toClassFields.put("pinCode", hashedPinCode + "");
+                toClassFields.put("expirationDate", getCardAcceptor().getExpirationDate());
+                toClassFields.put("holderName", getCardAcceptor().getHolder());
+                toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
+                Map<String, Map<String,String>> fields = makeFieldsMap("CheckPin", toClassFields);
+
+                Transactions checkPin = new Transactions();
+                checkPin.setFields(fields);
+                Map<String,String> result = checkPin.makeTransaction();
+
                 if(result.get("status").equals("true")) {
                     setOperationStatus(true);
                     setOperationResult("Принято");
@@ -170,21 +163,10 @@ public class Atm {
     }
 
     /**
-     * Метод формирующий json строку из hashmap коллекции
-     * @param toJson hashmap
-     * @return String формата json
-     */
-    private String makeJson(Map<String, String> toJson) {
-        GsonBuilder gsonBuilder = new GsonBuilder();
-        Gson gson = gsonBuilder.create();
-        return gson.toJson(toJson);
-    }
-
-    /**
      * Метод генерации 7 символьной строки
      * для унификации запущенного экземпляра класса
      */
-    public String generateRandomHash() {
+    private String generateRandomHash() {
         int leftLimit = 97;
         int rightLimit = 122;
         int targetStringLength = 7;
@@ -198,18 +180,29 @@ public class Atm {
         return buffer.toString();
     }
 
+    private Map<String, Map<String,String>> makeFieldsMap(String command, Map<String,String> toClassFields) {
+        Map<String, String> commandField = new HashMap<>();
+        commandField.put("command", command);
+        Map<String, Map<String,String>> fields = new HashMap<>();
+        fields.put("command", commandField);
+        fields.put("toClass", toClassFields);
+        return fields;
+    }
+
     /**
      * Метод формирует строку на получение данных по карте и отправляет ее на сервер
      * @return
      * @throws AtmException
      */
     private Map<String,String> getDataFromBank() throws AtmException {
-        CardAcceptor cardAcceptor = getCardAcceptor();
-        Map<String, String> toJson = new HashMap<>();
-        toJson.put("command", "get_data");
-        toJson.put("card_number", cardAcceptor.getAccountNumber());
-        String json = makeJson(toJson);
-        return sendDataToTheBank(json);
+        Map<String, String> toClassFields = new HashMap<>();
+        toClassFields.put("atmHash", getUniqHash());
+        toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
+        Map<String, Map<String,String>> fields = makeFieldsMap("GetData", toClassFields);
+
+        Transactions getData = new Transactions();
+        getData.setFields(fields);
+        return getData.makeTransaction();
     }
 
     /**
@@ -224,19 +217,15 @@ public class Atm {
             setOperationStatus(true);
             setOperationResult("Здравсвуйте " + result.get("name") + "\nВаш баланс счета: " + result.get("balance"));
         } else {
-            switch (result.get("status")) {
-                case "card_on_hold" -> {
-                    setOperationStatus(false);
-                    setOperationResult("Карта заблокирована банком");
-                }
-                case "account_on_hold" -> {
-                    setOperationStatus(false);
-                    setOperationResult("Счет привязанный к карте заблокирован");
-                }
-                case "expired" -> {
-                    setOperationStatus(false);
-                    setOperationResult("Срок действия карты истек");
-                }
+            if(result.get("status").equals("card_on_hold")) {
+                setOperationStatus(false);
+                setOperationResult("Карта заблокирована банком\n\n");
+            } else if (result.get("status").equals("account_on_hold")) {
+                setOperationStatus(false);
+                setOperationResult("Счет привязанный к карте заблокирован\n\n");
+            } else if (result.get("status").equals("expired")) {
+                setOperationStatus(false);
+                setOperationResult("Срок действия карты истек\n\n");
             }
         }
     }
@@ -245,7 +234,7 @@ public class Atm {
      * Метод формирует строку в которой описывается кол-во доступных купур в банкомате
      */
     public void checkOutputCassette() {
-        Map<String,String> billsAvailable = dispenser.checkCassette();
+        Map<String,String> billsAvailable = getDispenser().checkCassette();
         LinkedList<String> available = new LinkedList<>(billsAvailable.keySet());
         String outputBills = "Купюры в банкомате:\n";
         available.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
@@ -287,28 +276,39 @@ public class Atm {
         return false;
     }
 
-    public void chooseSumToWithdraw(int sum) throws AtmException {
+    public void chooseSumToWithdraw(int sum) throws AtmException, Error {
         int maxSum = getSumFromBankAccount();
         if(sum > maxSum) {
             System.out.println("На вашем счету лишь " + maxSum);
             if(isAllGood("Снять все деньги?")){
                 sum = maxSum;
             } else {
-                return;
+                throw new Error();
             }
         }
-        int newSum = dispenser.checkSum(sum);
-        if(dispenser.isError()) {
-            System.out.println(dispenser.getErrorDescription());
+        int newSum = getDispenser().checkSum(sum);
+        if(getDispenser().isError() && newSum != 0) {
+            System.out.println(getDispenser().getErrorDescription());
             if(isAllGood("Продолжить с новой суммой?")) {
                 sum = newSum;
             } else {
-                return;
+                throw new Error();
             }
+        } else if (getDispenser().isError() && newSum == 0) {
+            System.out.println(getDispenser().getErrorDescription());
+            throw new Error();
         }
-        dispenser.prepareSum(sum); //Подготавливаем сумму
-        //Создаем транзакцию
+        getDispenser().prepareSum(sum); //Подготавливаем сумму
 
+        Map<String, String> toClassFields = new HashMap<>();
+        toClassFields.put("atmHash", getUniqHash());
+        toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
+        toClassFields.put("sum", String.valueOf(sum));
+        Map<String, Map<String,String>> fields = makeFieldsMap("PullMoney", toClassFields);
+
+        Transactions pullBills = new Transactions();
+        pullBills.setFields(fields);
+        pullBills.makeTransaction();
     }
 
     /**
@@ -323,63 +323,64 @@ public class Atm {
      * на внесение суммы на счет клиента
      */
     public int putBillsOnBankAccount(int maxSumInClientWallet, Map<String, String> availableBills) throws AtmException {
-        int summ = billAcceptor.openBillAcceptor(maxSumInClientWallet, availableBills);
-        System.out.println("Вы добавили денег на сумму " + billAcceptor.getBillAcceptorSum());
-        makeBankTransaction("new_transaction_add_money", billAcceptor.getBillAcceptorSum());
-        System.out.println("1.Внести на счет 2.Добавить сумму 3.Вернуть деньги");
-        System.out.println("Типа саздаю транзакцию");
+        int summ = getBillAcceptor().openBillAcceptor(maxSumInClientWallet, availableBills);
+        if(getBillAcceptor().getBillAcceptorSum() != 0) {
+            System.out.println("Вы добавили денег на сумму " + getBillAcceptor().getBillAcceptorSum());
+
+            Map<String, String> toClassFields = new HashMap<>();
+            toClassFields.put("atmHash", getUniqHash());
+            toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
+            toClassFields.put("sum", String.valueOf(getBillAcceptor().getBillAcceptorSum()));
+            Map<String, Map<String,String>> fields = makeFieldsMap("PutMoney", toClassFields);
+
+            Transactions putBills = new Transactions();
+            putBills.setFields(fields);
+            putBills.makeTransaction();
+
+            System.out.println("1.Внести на счет 2.Добавить сумму 3.Вернуть деньги");
+        }
         return summ;
     }
 
-    public void makeBankTransaction(String command, int added) throws AtmException {
-        Map<String, String> toJson = new HashMap<>();
-        toJson.put("command", command);
-        toJson.put("atm_hash", getUniqHash());
-        toJson.put("card_number", getCardAcceptor().getAccountNumber());
-        toJson.put("sum", String.valueOf(added));
-        sendTransaction(toJson);
+    public boolean askCommit() {
+        return isAllGood("Снять указанную сумму?");
     }
 
-    public void comitTransaction(String command) throws AtmException {
-        Map<String, String> toJson = new HashMap<>();
-        toJson.put("command", command);
-        toJson.put("atm_hash", getUniqHash());
-        toJson.put("card_number", getCardAcceptor().getAccountNumber());
-        toJson.put("sum", "");
-        sendTransaction(toJson);
-        if(isAllGood("Напечатать чек?")) {
-            printer.print(command, "atm_hash", "card_number", "sum");
-        }
+    /**
+     * Финализация транзации коммитом
+     * @throws AtmException ошибка банкомата
+     */
+    public void commit() throws AtmException {
+        Map<String,String> toClassFields = new HashMap<>();
+        toClassFields.put("atmHash", getUniqHash());
+
+        Map<String, Map<String,String>> fields = makeFieldsMap("Commit", toClassFields);
+
+        Transactions commit = new Transactions();
+        commit.setFields(fields);
+        commit.makeTransaction();
     }
 
-    public void rollbackTransaction(String command) throws AtmException {
-        Map<String, String> toJson = new HashMap<>();
-        toJson.put("command", command);
-        toJson.put("atm_hash", getUniqHash());
-        toJson.put("card_number", getCardAcceptor().getAccountNumber());
-        toJson.put("sum", "");
-        sendTransaction(toJson);
-    }
+    /**
+     * Финализация транзации откатом
+     * @throws AtmException ошибка банкомата
+     */
+    public void rollback() throws AtmException {
+        Map<String,String> toClassFields = new HashMap<>();
+        toClassFields.put("atmHash", getUniqHash());
 
-    private void sendTransaction(Map<String,String>toJson) throws AtmException {
-        String json = makeJson(toJson);
-        Map<String,String> result = sendDataToTheBank(json);
-        if(result.get("status").equals("true")) {
-            setOperationStatus(true);
-            System.out.println("ok");
-            setOperationResult("1");
-        } else {
-            setOperationStatus(false);
-            System.out.println("foo");
-            setOperationResult("2");
-        }
+        Map<String, Map<String,String>> fields = makeFieldsMap("Rollback", toClassFields);
+
+        Transactions rollback = new Transactions();
+        rollback.setFields(fields);
+        rollback.makeTransaction();
     }
 
     /**
      * Метод обнуляет купюроприемник
      */
     public void getMoneyBack() {
-        billAcceptor.setBillAcceptorContains(new HashMap<>());
+        getBillAcceptor().setBillAcceptorContains(new HashMap<>());
     }
 
     /**
@@ -387,7 +388,7 @@ public class Atm {
      */
     public void eject() throws AtmException{
         setOperationCritical(false);
-        cardAcceptor.cardEject();
+        getCardAcceptor().cardEject();
     }
 
     /**
@@ -413,6 +414,20 @@ class SocketClient {
     private PrintWriter out;
     private BufferedReader in;
 
+    /// get+set ///
+    private Socket getClientSocket() { return clientSocket; }
+
+    private void setClientSocket(Socket clientSocket) { this.clientSocket = clientSocket; }
+
+    public PrintWriter getOut() { return out; }
+
+    public void setOut(PrintWriter out) { this.out = out; }
+
+    public BufferedReader getIn() { return in; }
+
+    public void setIn(BufferedReader in) { this.in = in; }
+    /// get+set ///
+
     /**
      * Метод подключения к серверу
      * @param ip ип сервера
@@ -420,9 +435,9 @@ class SocketClient {
      * @throws IOException ошибка ввода ввывода
      */
     public void startConnection(String ip, int port) throws IOException {
-        clientSocket = new Socket(ip, port);
-        out = new PrintWriter(clientSocket.getOutputStream(), true);
-        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+        setClientSocket(new Socket(ip, port));
+        setOut(new PrintWriter(getClientSocket().getOutputStream(), true));
+        setIn(new BufferedReader(new InputStreamReader(getClientSocket().getInputStream())));
     }
 
     /**
@@ -434,8 +449,8 @@ class SocketClient {
      * @throws IOException ошибка ввода вывода
      */
     public String sendMessage(String msg) throws IOException {
-        out.println(msg);
-        return in.readLine();
+        getOut().println(msg);
+        return getIn().readLine();
     }
 
     /**
@@ -444,8 +459,80 @@ class SocketClient {
      * @throws IOException ошибка ввода вывода
      */
     public void stopConnection() throws IOException {
-        in.close();
-        out.close();
-        clientSocket.close();
+        getIn().close();
+        getOut().close();
+        getClientSocket().close();
+    }
+}
+
+/**
+ * Класс отвечающий за работу с сервером
+ * для успешной работы класса необходимо
+ * установить все поля за исключением otherFields (опцианально)
+ * и вызвать один из методов создающих транзакцию
+ */
+class Transactions {
+
+    /**
+     * Поле содержащее в себе строку указывающую какое действие
+     * необходимо исполнить серверу
+     * Досьупные комманды:
+     * check_pin проверка пинкода
+     * get_data запрос данных о пользователе
+     * transaction_add_money создание транзации на добавление денег на счет
+     * rollback откат транзакции
+     * commit комит транзакции
+     */
+    private Map<String,Map<String,String>> fields;
+
+    public void setFields(Map<String,Map<String,String>> fields) { this.fields = fields; }
+
+    private Map<String,Map<String,String>> getFields() { return fields; }
+
+
+    /**
+     * Метод формирует из map - json и отправляет на сервер
+     * авто коммита при этом не происходит, как следствие
+     * необходимо транзакцию нужно либо закоммитить либо роллбэкнуть
+     * @throws AtmException ошибка банкомата
+     */
+    public Map<String, String> makeTransaction() throws AtmException {
+        String json = makeJson();
+        return sendDataToTheBank(json);
+    }
+
+
+
+    /**
+     * Метод формирующий json строку из hashmap коллекции
+     * @return String формата json
+     */
+    private String makeJson() {
+        Map<String,Map<String,String>> toJson = getFields();
+        Gson gson = new GsonBuilder()
+                .create();
+        return gson.toJson(toJson);
+    }
+
+    /**
+     * Метод отправки данных на сокет сервер банка
+     * сразу перегоняет ответ в map
+     * @param data json строка с данными
+     * @return hashmap с ответом сервера преобразоаваный из json
+     */
+    private Map<String, String> sendDataToTheBank(String data) throws AtmException {
+        SocketClient connection = new SocketClient();
+        Map<String, String> response;
+        try {
+            connection.startConnection("127.0.0.1", 451);
+            String result = connection.sendMessage(data);
+            GsonBuilder builder = new GsonBuilder();
+            Gson gson = builder.create();
+            response = gson.fromJson(result, HashMap.class);
+            connection.stopConnection();
+        } catch (IOException e) {
+            throw new AtmException("Произошла ошибка подключения", false);
+        }
+        return response;
     }
 }

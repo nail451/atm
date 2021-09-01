@@ -11,10 +11,9 @@ import java.util.Objects;
 /**
  * Класс описывающий картоприемник
  */
-class CardAcceptor implements Receiving {
+class CardAcceptor {
     private Card insertedCard;
     private boolean cardInside;
-
     private String accountNumber;
     private String expirationDate;
     private String holder;
@@ -25,22 +24,31 @@ class CardAcceptor implements Receiving {
      * @param newCard Card
      */
     public CardAcceptor(Card newCard) {
-        insertedCard = newCard;
+        setInsertedCard(newCard);
         receive();
-        cardInside = isValidCard(newCard);
+        setCardInside(isValidCard(newCard));
     }
 
     /// get+set ///
+    private Card getInsertedCard() { return insertedCard; }
+
+    private void setInsertedCard(Card insertedCard) { this.insertedCard = insertedCard; }
 
     public boolean getCardInside() {
         return cardInside;
     }
 
+    public void setCardInside(boolean cardInside) {
+        this.cardInside = cardInside;
+    }
+
     private void setAccountNumber(String accountNumber) {
+        assert getCardInside();
         this.accountNumber = accountNumber;
     }
 
     public String getAccountNumber(){
+        assert getCardInside();
         return accountNumber;
     }
 
@@ -71,18 +79,15 @@ class CardAcceptor implements Receiving {
     public String getHolder(){
         return holder;
     }
-
     /// get+set ///
 
     /**
-     * Реализация метода из интрефейса Receiving
      * Получет данные с карты и раскладывает их по
      * соотвествующим полям
      */
-    @Override
     public void receive() {
-        assert insertedCard != null;
-        List<String> insertedCardData = insertedCard.getCardData();
+        assert getInsertedCard() != null;
+        List<String> insertedCardData = getInsertedCard().getCardData();
         for(String line : insertedCardData) {
             if (line.length() == 16 && isNumeric(line)) setAccountNumber(line);
             if (line.contains("/")) setExpirationDate(line);
@@ -94,8 +99,8 @@ class CardAcceptor implements Receiving {
      * Вывод карты
      */
     public void cardEject() throws AtmException {
-        insertedCard = null;
-        cardInside = false;
+        setInsertedCard(null);
+        setCardInside(false);
         throw new AtmException("Заберите карту\n\n", true);
     }
 

@@ -12,7 +12,7 @@ import java.util.*;
 public class BillAcceptor {
 
     private Map<Integer, Integer> billAcceptorContains = new HashMap<>();
-    public final static int DELAYTIME = 10;
+    private final static int DELAYTIME = 10;
     private Map<Integer, Integer> inputCassette;
 
     public BillAcceptor(){
@@ -22,6 +22,8 @@ public class BillAcceptor {
     public Map<Integer, Integer> getBillAcceptorContains() {
         return billAcceptorContains;
     }
+
+
 
     /**
      * Геттер суммы по контейнеру валюты
@@ -71,31 +73,6 @@ public class BillAcceptor {
     }
 
     /**
-     * Проверяет входную кассету с деньгами
-     * Переводит данные из json в hashmap
-     * возвращяет состояние в виде hashmap
-     * @return hashmap в формате <Номинал=количество>
-     */
-    private Map<Integer, Integer> checkInputCassette() {
-        File atmSafe = new File("src/main/java/Atm/atm_safe");
-        Scanner atmSafeData = null;
-        try {
-            atmSafeData = new Scanner(atmSafe);
-        } catch (FileNotFoundException e) {
-            System.out.println("Сейф вскрыт, кассеты отсутвуют");
-        }
-        String data = "";
-        assert atmSafeData != null;
-        if (atmSafeData.hasNextLine()) {
-            data = atmSafeData.nextLine();
-        }
-        GsonBuilder builder = new GsonBuilder();
-        Gson gson = builder.create();
-        Map<String, Map<Integer, Integer>> result = gson.fromJson(data, HashMap.class);
-        return result.get("input_cassette");
-    }
-
-    /**
      * Метод открытия аггрегата для принятия денег
      * Открывает аггрегат на DELAYTIME секунд для внесения денежной суммы
      * устанавлиает поле billAcceptorContains
@@ -110,8 +87,8 @@ public class BillAcceptor {
         try {
             BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
             long startTime = System.currentTimeMillis();
-            while ((System.currentTimeMillis() - startTime) < DELAYTIME * 1000
-                    && !in.ready()) {
+            System.out.println( "Купюроприемник будет закрыт через " + DELAYTIME + " секунд");
+            while ((System.currentTimeMillis() - startTime) < DELAYTIME * 1000 && !in.ready()) {
             }
             if (in.ready()) {
                 String newLine = in.readLine();
@@ -120,7 +97,7 @@ public class BillAcceptor {
                         money = getBillsFromWallet(Integer.parseInt(newLine), availableBills);
                         setBillAcceptorContains(money);
                     } catch (Error e) {
-                        System.out.println("Не хватает соответсвующих купюр для внесегия нужной суммы");
+                        System.out.println("Не хватает соответсвующих купюр для внесения нужной суммы");
                     }
                 } else {
                     System.out.println("Нехватает наличных для внесения полной суммы");
@@ -178,5 +155,30 @@ public class BillAcceptor {
         }
         if(neededMoney != 0) throw new Error();
         return money;
+    }
+
+    /**
+     * Проверяет входную кассету с деньгами
+     * Переводит данные из json в hashmap
+     * возвращяет состояние в виде hashmap
+     * @return hashmap в формате <Номинал=количество>
+     */
+    private Map<Integer, Integer> checkInputCassette() {
+        File atmSafe = new File("src/main/java/Atm/atm_safe");
+        Scanner atmSafeData = null;
+        try {
+            atmSafeData = new Scanner(atmSafe);
+        } catch (FileNotFoundException e) {
+            System.out.println("Сейф вскрыт, кассеты отсутвуют");
+        }
+        String data = "";
+        assert atmSafeData != null;
+        if (atmSafeData.hasNextLine()) {
+            data = atmSafeData.nextLine();
+        }
+        GsonBuilder builder = new GsonBuilder();
+        Gson gson = builder.create();
+        Map<String, Map<Integer, Integer>> result = gson.fromJson(data, HashMap.class);
+        return result.get("input_cassette");
     }
 }
