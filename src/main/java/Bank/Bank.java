@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Класс описывающий сущность Банк, для работы с atm
  */
-public class Bank {
+public class Bank implements Runnable {
     private ServerSocket serverSocket;
     private Socket clientSocket;
     private PrintWriter out;
@@ -45,6 +45,15 @@ public class Bank {
     public static void setBankController(BankController bankController) { Bank.bankController = bankController; }
 
 
+    @Override
+    public void run() {
+        String[] args = new String[0];
+        try {
+            Bank.main(args);
+        } catch (IOException | SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Инициализация сокет сервера

@@ -1,12 +1,17 @@
 import Atm.*;
 import Atm.AtmException;
+import Bank.Bank;
 import Card.Card;
 import Client.Client;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.Scanner;
 
 public class index {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, SQLException {
+        Bank bank = new Bank();
+        Thread bankThread = new Thread(bank);
+        bankThread.start();
         Client client = Client.getInstance();
         InteractiveAtm atm = Atm.getInstance();
         while (true) {

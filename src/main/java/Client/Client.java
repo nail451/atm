@@ -1,6 +1,5 @@
 package Client;
 
-import Atm.Atm;
 import Card.Card;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -80,7 +79,6 @@ public class Client {
 
     /**
      * Метод возвращает максимальную сумму которую сможет положить клиент на счет
-     * @return int сумма
      */
     public void checkWallet() {
         System.out.println("Максимальная сумма которую можно положить " + getSum() + "(" + getAvailableBills() + ")");
@@ -186,8 +184,6 @@ public class Client {
         }
         setSum(sum);
     }
-
-
 
     /**
      * Метод возвращает доступное кол-во денег в виде колекции формата <Номинал=Кол-во>
