@@ -18,23 +18,23 @@ public class BankController{
     private Map<String, Savepoint> savePointMap = new HashMap<>();
     private Map<String, PreparedStatement> statementMap = new HashMap<>();
 
-    public Map<String, Connection> getConnectionMap() { return connectionMap; }
+    private Map<String, Connection> getConnectionMap() { return connectionMap; }
 
-    public Map<String, Savepoint> getSavePointMap() { return savePointMap; }
+    private Map<String, Savepoint> getSavePointMap() { return savePointMap; }
 
-    public Map<String, PreparedStatement> getStatementMap() { return statementMap; }
+    private Map<String, PreparedStatement> getStatementMap() { return statementMap; }
 
-    public void setConnectionMap(String hash, Connection dbConnection) { this.connectionMap.put(hash, dbConnection); }
+    private void setConnectionMap(String hash, Connection dbConnection) { this.connectionMap.put(hash, dbConnection); }
 
-    public void setSavePointMap(String hash, Savepoint savepoint) { this.savePointMap.put(hash, savepoint); }
+    private void setSavePointMap(String hash, Savepoint savepoint) { this.savePointMap.put(hash, savepoint); }
 
-    public void setStatementMap(String hash, PreparedStatement statement) { this.statementMap.put(hash, statement); }
+    private void setStatementMap(String hash, PreparedStatement statement) { this.statementMap.put(hash, statement); }
 
-    public void removeFromConnectionMap(String hash) { this.connectionMap.remove(hash); }
+    private void removeFromConnectionMap(String hash) { this.connectionMap.remove(hash); }
 
-    public void removeFromSavePointMap(String hash) { this.savePointMap.remove(hash); }
+    private void removeFromSavePointMap(String hash) { this.savePointMap.remove(hash); }
 
-    public void removeFromStatementMap(String hash) { this.statementMap.remove(hash); }
+    private void removeFromStatementMap(String hash) { this.statementMap.remove(hash); }
 
     /**
      * Приватный конеструктор класса, как часть singleton

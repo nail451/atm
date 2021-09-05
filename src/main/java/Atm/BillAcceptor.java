@@ -19,7 +19,7 @@ public class BillAcceptor {
         setInputCassette(checkInputCassette());
     }
 
-    public Map<Integer, Integer> getBillAcceptorContains() {
+    private Map<Integer, Integer> getBillAcceptorContains() {
         return billAcceptorContains;
     }
 
@@ -68,7 +68,7 @@ public class BillAcceptor {
         }
     }
 
-    public void setInputCassette(Map<Integer, Integer> inputCassette) {
+    private void setInputCassette(Map<Integer, Integer> inputCassette) {
         this.inputCassette = inputCassette;
     }
 
@@ -119,7 +119,7 @@ public class BillAcceptor {
      * @param money карта
      * @return int сумма
      */
-    public int sumMoneyOnIteration(Map<Integer, Integer> money) {
+    private int sumMoneyOnIteration(Map<Integer, Integer> money) {
         List<Integer> bills = new ArrayList<>(money.keySet());
         int sum = 0;
         for (Integer i : bills) {
@@ -134,7 +134,7 @@ public class BillAcceptor {
      * @param availableMoney map доступные купюры
      * @return map коллекция выбранных купюр
      */
-    public Map<Integer, Integer> getBillsFromWallet(int neededMoney, Map<String, String>availableMoney) {
+    private Map<Integer, Integer> getBillsFromWallet(int neededMoney, Map<String, String>availableMoney) {
         List<String> allBills =  new LinkedList<>(availableMoney.keySet());
         allBills.sort((Comparator) (o1, o2) -> Integer.parseInt((String) o1) > Integer.parseInt((String)o2) ? -1 : 1);
         Map<Integer, Integer> money = new HashMap<>();

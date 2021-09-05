@@ -24,17 +24,17 @@ class Dispenser {
         setCassette(checkCassette());
     }
 
-    public Map<String, String> getCassette() { return cassette; }
+    private Map<String, String> getCassette() { return cassette; }
 
-    public void setCassette(Map<String, String> cassette) { this.cassette = cassette; }
+    private void setCassette(Map<String, String> cassette) { this.cassette = cassette; }
 
     public String getErrorDescription() { return errorDescription; }
 
-    public void setErrorDescription(String errorDescription) { this.errorDescription = errorDescription; }
+    private void setErrorDescription(String errorDescription) { this.errorDescription = errorDescription; }
 
     public boolean isError() { return error; }
 
-    public void setError(boolean error) { this.error = error; }
+    private void setError(boolean error) { this.error = error; }
 
     public Map<String, String> getBillsInTheDispenser() { return billsInTheDispenser; }
 

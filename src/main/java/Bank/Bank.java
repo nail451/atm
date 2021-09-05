@@ -22,34 +22,30 @@ public class Bank implements Runnable {
     private Socket clientSocket;
     private PrintWriter out;
     private BufferedReader in;
-    private static BankController bankController;
 
-    public ServerSocket getServerSocket() { return serverSocket; }
+    private ServerSocket getServerSocket() { return serverSocket; }
 
-    public void setServerSocket(ServerSocket serverSocket) { this.serverSocket = serverSocket; }
+    private void setServerSocket(ServerSocket serverSocket) { this.serverSocket = serverSocket; }
 
-    public Socket getClientSocket() { return clientSocket; }
+    private Socket getClientSocket() { return clientSocket; }
 
-    public void setClientSocket(Socket clientSocket) { this.clientSocket = clientSocket; }
+    private void setClientSocket(Socket clientSocket) { this.clientSocket = clientSocket; }
 
-    public PrintWriter getOut() { return out; }
+    private PrintWriter getOut() { return out; }
 
-    public void setOut(PrintWriter out) { this.out = out; }
+    private void setOut(PrintWriter out) { this.out = out; }
 
-    public BufferedReader getIn() { return in; }
+    private BufferedReader getIn() { return in; }
 
-    public void setIn(BufferedReader in) { this.in = in; }
+    private void setIn(BufferedReader in) { this.in = in; }
 
-    public static BankController getBankController() { return bankController; }
-
-    public static void setBankController(BankController bankController) { Bank.bankController = bankController; }
-
-
+    /**
+     * Реализация метода интерфейса Runnable
+     */
     @Override
     public void run() {
-        String[] args = new String[0];
         try {
-            Bank.main(args);
+            Bank.main(new String[0]);
         } catch (IOException | SQLException e) {
             e.printStackTrace();
         }
@@ -62,7 +58,6 @@ public class Bank implements Runnable {
      */
     public static void main(String[] args) throws IOException, SQLException {
         Bank socketServer = new Bank();
-        setBankController(BankController.getInstance());
         socketServer.serverStart(451);
     }
 

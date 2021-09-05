@@ -27,7 +27,7 @@ class CardAcceptor {
         return cardInside;
     }
 
-    public void setCardInside(boolean cardInside) {
+    private void setCardInside(boolean cardInside) {
         this.cardInside = cardInside;
     }
 
@@ -82,10 +82,19 @@ class CardAcceptor {
     }
 
     /**
+     * Вывод карты
+     */
+    public void cardEject() throws AtmException {
+        setInsertedCard(null);
+        setCardInside(false);
+        throw new AtmException("Заберите карту\n\n", true);
+    }
+
+    /**
      * Получет данные с карты и раскладывает их по
      * соотвествующим полям
      */
-    public void receive() {
+    private void receive() {
         assert getInsertedCard() != null;
         List<String> insertedCardData = getInsertedCard().getCardData();
         for(String line : insertedCardData) {
@@ -93,15 +102,6 @@ class CardAcceptor {
             if (line.contains("/")) setExpirationDate(line);
             if (line.contains(" ")) setHolder(line);
         }
-    }
-
-    /**
-     * Вывод карты
-     */
-    public void cardEject() throws AtmException {
-        setInsertedCard(null);
-        setCardInside(false);
-        throw new AtmException("Заберите карту\n\n", true);
     }
 
     /**
@@ -122,7 +122,7 @@ class CardAcceptor {
      * @param str строка на проверку
      * @return boolean результат проверки
      */
-    public static boolean isNumeric(String str) {
+    private static boolean isNumeric(String str) {
         if (str == null) {
             return false;
         }

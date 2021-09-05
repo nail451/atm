@@ -37,29 +37,28 @@ public class Atm implements InteractiveAtm {
 
     public String getOperationResult() { return operationResult; }
 
-    public CardAcceptor getCardAcceptor() { return cardAcceptor; }
+    private CardAcceptor getCardAcceptor() { return cardAcceptor; }
 
-    public int getFalseCounter() { return falseCounter; }
+    private int getFalseCounter() { return falseCounter; }
 
-    public void setOperationCritical(boolean operationCritical) { this.operationCritical = operationCritical; }
+    private void setOperationCritical(boolean operationCritical) { this.operationCritical = operationCritical; }
 
-    public void setOperationStatus(boolean operationStatus) { this.operationStatus = operationStatus; }
+    private void setOperationStatus(boolean operationStatus) { this.operationStatus = operationStatus; }
 
-    public void setOperationResult(String operationResult) {
+    private void setOperationResult(String operationResult) {
         this.operationResult = operationResult;
     }
 
-    public void setCardAcceptor(CardAcceptor cardAcceptor) {
+    private void setCardAcceptor(CardAcceptor cardAcceptor) {
         this.cardAcceptor = cardAcceptor;
     }
 
-    public void setFalseCounter(int falseCounter) { this.falseCounter = falseCounter; }
+    private void setFalseCounter(int falseCounter) { this.falseCounter = falseCounter; }
 
-    public BillAcceptor getBillAcceptor() { return billAcceptor; }
+    private BillAcceptor getBillAcceptor() { return billAcceptor; }
 
-    public Dispenser getDispenser() { return dispenser; }
+    private Dispenser getDispenser() { return dispenser; }
 
-    public Printer getPrinter() { return printer; }
     /// get+set ///
 
     /**

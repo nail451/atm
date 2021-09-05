@@ -14,8 +14,8 @@ import java.util.*;
  */
 public class Client {
     private static Client instance;
-    int sum;
-    Map<String, String> availableBills;
+    private int sum;
+    private Map<String, String> availableBills;
 
     private void setSum(int sum) {
         this.sum = sum;
