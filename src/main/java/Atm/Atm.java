@@ -92,10 +92,9 @@ public class Atm implements InteractiveAtm {
     /**
      * Метод прооверки соотвествия введеного пинкода сохраненному в банке
      * Собирает hashmap коллекцию
-     * где 0 ключ    = "command"
-     * где 0 элемент = "check_pin"
      * Преобразует коллекцию в json
      * Отправлет json на сервер
+     * Устанавливает результаты в operationStatus и operationResult
      * @param enteredPinCode строка с введенным пин кодом
      */
     public void checkPin(String enteredPinCode) throws Exception {
@@ -146,70 +145,10 @@ public class Atm implements InteractiveAtm {
     }
 
     /**
-     * Метод проверки валидности введенного пользователем пин кода
-     * @param pin введенная строка
-     * @return boolean
-     */
-    private boolean isPinValid(String pin) {
-        if(pin.length() != 4){
-            return false;
-        }
-        for (int i = 0; i < pin.length(); i++) {
-            if(!Character.isDigit(pin.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Метод генерации 7 символьной строки
-     * для унификации запущенного экземпляра класса
-     */
-    private String generateRandomHash() {
-        int leftLimit = 97;
-        int rightLimit = 122;
-        int targetStringLength = 7;
-        Random random = new Random();
-        StringBuilder buffer = new StringBuilder(targetStringLength);
-        for (int i = 0; i < targetStringLength; i++) {
-            int randomLimitedInt = leftLimit + (int)
-                    (random.nextFloat() * (rightLimit - leftLimit + 1));
-            buffer.append((char) randomLimitedInt);
-        }
-        return buffer.toString();
-    }
-
-    private Map<String, Map<String,String>> makeFieldsMap(String command, Map<String,String> toClassFields) {
-        Map<String, String> commandField = new HashMap<>();
-        commandField.put("command", command);
-        Map<String, Map<String,String>> fields = new HashMap<>();
-        fields.put("command", commandField);
-        fields.put("toClass", toClassFields);
-        return fields;
-    }
-
-    /**
-     * Метод формирует строку на получение данных по карте и отправляет ее на сервер
-     * @return
-     * @throws AtmException
-     */
-    private Map<String,String> getDataFromBank() throws AtmException {
-        Map<String, String> toClassFields = new HashMap<>();
-        toClassFields.put("atmHash", getUniqHash());
-        toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
-        Map<String, Map<String,String>> fields = makeFieldsMap("GetData", toClassFields);
-
-        Transactions getData = new Transactions();
-        getData.setFields(fields);
-        return getData.makeTransaction();
-    }
-
-    /**
-     * Метод отправки запроса на сервер банка с получением данных по соотвествующей карте
-     * Ответ записывается в
-     * operationStatus
-     * operationResult
+     * Метод вызывает метод запроса данных с сервера и
+     * обрабатывает пришедший результат
+     * результат устанавливается в operationStatus и operationResult
+     * @throws AtmException ошибка atm
      */
     public void getDataFromBankAccount() throws AtmException {
         Map<String,String> result = getDataFromBank();
@@ -252,30 +191,22 @@ public class Atm implements InteractiveAtm {
     /**
      * Метод запрашивает данные по карте у банка и возвращает баланс
      * @return int баланс счета
-     * @throws AtmException
+     * @throws AtmException ошибка банкомата
      */
     public int getSumFromBankAccount() throws AtmException {
         Map<String,String> result = getDataFromBank();
         return Integer.parseInt(result.get("balance"));
     }
 
-    private boolean isAllGood(String yesNoAskString) {
-        System.out.println(yesNoAskString);
-        System.out.println("1.Да 2.Нет");
-        Scanner nextMove = new Scanner(System.in);
-        if (nextMove.hasNextLine()) {
-            String answer = nextMove.nextLine();
-            if (isNumeric(answer)) {
-                if(Integer.parseInt(answer) == 1) return true;
-                else if(Integer.parseInt(answer) == 2) return false;
-            } else {
-                if (answer.equals("Да")) return true;
-                else if(answer.equals("Нет")) return false;
-            }
-        }
-        return false;
-    }
-
+    /**
+     * Метод обрабатывает введенную клиентом сумму которую он хотел бы снять
+     * Обрабатывает ошибки недостачи средсв на счету,
+     * небостачи купюр нужного номинала
+     * Собирает коллекцию с коммандой и отправляет ее на сервер
+     * @param sum строка
+     * @throws AtmException критическая ошибка банкомата
+     * @throws Error не критичная ошибка
+     */
     public void chooseSumToWithdraw(int sum) throws AtmException, Error {
         int maxSum = getSumFromBankAccount();
         if(sum > maxSum) {
@@ -312,12 +243,12 @@ public class Atm implements InteractiveAtm {
     }
 
     /**
-     * Метод возвращется содержимое диспенсера и очищает его
+     * Метод возвращет содержимое диспенсера и очищает его
      * @return коллекция
      */
     public Map<String,String> giveMoney() {
         Map<String,String> money = getDispenser().getBillsInTheDispenser();
-        getDispenser().setBillsInTheDispenser(new HashMap<String,String>());
+        getDispenser().setBillsInTheDispenser(new HashMap<>());
         return money;
     }
 
@@ -329,8 +260,12 @@ public class Atm implements InteractiveAtm {
     }
 
     /**
-     * Метод отправки команды на сервер банка
-     * на внесение суммы на счет клиента
+     * Метод обращается вложенную клиентом в купюроприемник сумму денег
+     * формирует команду на старт транзакции и предлогает дальнейшие действия
+     * @param maxSumInClientWallet костыль - банкомат знает сколько максимум есть денег у клиента
+     * @param availableBills костыль - банкомат знает какие купюры формируют сумму
+     * @return int сумма денег в купюроприемнике
+     * @throws AtmException ошибка
      */
     public int putBillsOnBankAccount(int maxSumInClientWallet, Map<String, String> availableBills) throws AtmException {
         int summ = getBillAcceptor().openBillAcceptor(maxSumInClientWallet, availableBills);
@@ -352,6 +287,10 @@ public class Atm implements InteractiveAtm {
         return summ;
     }
 
+    /**
+     * Запрос подтвержения у клиента.
+     * @return boolean
+     */
     public boolean askCommit() {
         return isAllGood("Снять указанную сумму?");
     }
@@ -402,6 +341,78 @@ public class Atm implements InteractiveAtm {
     }
 
     /**
+     * Метод проверки валидности введенного пользователем пин кода
+     * @param pin введенная строка
+     * @return boolean
+     */
+    private boolean isPinValid(String pin) {
+        if(pin.length() != 4){
+            return false;
+        }
+        for (int i = 0; i < pin.length(); i++) {
+            if(!Character.isDigit(pin.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Метод генерации 7 символьной строки
+     * для унификации запущенного экземпляра класса
+     */
+    private String generateRandomHash() {
+        int leftLimit = 97;
+        int rightLimit = 122;
+        int targetStringLength = 7;
+        Random random = new Random();
+        StringBuilder buffer = new StringBuilder(targetStringLength);
+        for (int i = 0; i < targetStringLength; i++) {
+            int randomLimitedInt = leftLimit + (int)
+                    (random.nextFloat() * (rightLimit - leftLimit + 1));
+            buffer.append((char) randomLimitedInt);
+        }
+        return buffer.toString();
+    }
+
+    /**
+     * Вспомогательный метод для сбора коллекции
+     * @param command String команда серверу
+     * @param toClassFields Map коллекция полей необходимая для выполнения команды
+     * @return Map<String, Map<String, String>>
+     */
+    private Map<String, Map<String,String>> makeFieldsMap(String command, Map<String,String> toClassFields) {
+        Map<String, String> commandField = new HashMap<>();
+        commandField.put("command", command);
+        Map<String, Map<String,String>> fields = new HashMap<>();
+        fields.put("command", commandField);
+        fields.put("toClass", toClassFields);
+        return fields;
+    }
+
+    /**
+     * Метод запрашивающий подтверждение у клиента
+     * @param yesNoAskString строка содержащая вопрос
+     * @return boolean
+     */
+    private boolean isAllGood(String yesNoAskString) {
+        System.out.println(yesNoAskString);
+        System.out.println("1.Да 2.Нет");
+        Scanner nextMove = new Scanner(System.in);
+        if (nextMove.hasNextLine()) {
+            String answer = nextMove.nextLine();
+            if (isNumeric(answer)) {
+                if(Integer.parseInt(answer) == 1) return true;
+                else if(Integer.parseInt(answer) == 2) return false;
+            } else {
+                if (answer.equals("Да")) return true;
+                else if(answer.equals("Нет")) return false;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Простейшая проверка на целочесленное значение
      * @param string проверяемая строка
      * @return boolean
@@ -413,6 +424,23 @@ public class Atm implements InteractiveAtm {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    /**
+     * Метод собирает коллекцию с коммандой GetData,
+     * формирует из нее строку и отправляет ее на сервер
+     * @return Map<String,String> результат выполнения команды
+     * @throws AtmException при ошибке коннекта тормозим выполнение программы
+     */
+    private Map<String,String> getDataFromBank() throws AtmException {
+        Map<String, String> toClassFields = new HashMap<>();
+        toClassFields.put("atmHash", getUniqHash());
+        toClassFields.put("accountNumber", getCardAcceptor().getAccountNumber());
+        Map<String, Map<String,String>> fields = makeFieldsMap("GetData", toClassFields);
+
+        Transactions getData = new Transactions();
+        getData.setFields(fields);
+        return getData.makeTransaction();
     }
 }
 

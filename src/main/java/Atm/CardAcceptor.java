@@ -18,17 +18,6 @@ class CardAcceptor {
     private String expirationDate;
     private String holder;
 
-    /**
-     * Конструктор класса,
-     * Получает карту и данные с нее
-     * @param newCard Card
-     */
-    public CardAcceptor(Card newCard) {
-        setInsertedCard(newCard);
-        receive();
-        setCardInside(isValidCard(newCard));
-    }
-
     /// get+set ///
     private Card getInsertedCard() { return insertedCard; }
 
@@ -82,6 +71,17 @@ class CardAcceptor {
     /// get+set ///
 
     /**
+     * Конструктор класса,
+     * Получает карту и данные с нее
+     * @param newCard Card
+     */
+    public CardAcceptor(Card newCard) {
+        setInsertedCard(newCard);
+        receive();
+        setCardInside(isValidCard());
+    }
+
+    /**
      * Получет данные с карты и раскладывает их по
      * соотвествующим полям
      */
@@ -107,10 +107,9 @@ class CardAcceptor {
     /**
      * Проверка карты на валидность
      * проверяет по маске значиеня на карте
-     * @param newCard объект класса Card
      * @return boolean
      */
-    private boolean isValidCard(Card newCard){
+    private boolean isValidCard(){
         boolean isValid = false;
         if(Objects.nonNull(accountNumber) && isNumeric(accountNumber) && accountNumber.length() == 16) {
             isValid = true;

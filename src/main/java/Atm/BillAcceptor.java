@@ -12,7 +12,7 @@ import java.util.*;
 public class BillAcceptor {
 
     private Map<Integer, Integer> billAcceptorContains = new HashMap<>();
-    private final static int DELAYTIME = 10;
+    private final static int DELAYTIME = 30;
     private Map<Integer, Integer> inputCassette;
 
     public BillAcceptor(){
